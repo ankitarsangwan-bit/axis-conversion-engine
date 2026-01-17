@@ -1,6 +1,8 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { MISUpload } from '@/types/axis';
+import { KpiCard } from '@/components/KpiCard';
+import { ExportButton } from '@/components/ExportButton';
 
 interface MISUploadTabProps {
   currentUpload: MISUpload | undefined;
@@ -8,65 +10,64 @@ interface MISUploadTabProps {
 }
 
 export function MISUploadTab({ currentUpload, uploadHistory }: MISUploadTabProps) {
+  const exportData = uploadHistory.map(u => ({
+    'Upload ID': u.uploadId,
+    'Date': u.uploadDate,
+    'Time': u.uploadTime,
+    'Records': u.recordCount,
+    'New': u.newRecords,
+    'Updated': u.updatedRecords,
+    'Source': u.uploadedBy,
+    'Status': u.status,
+  }));
+
+  const avgRecords = Math.round(uploadHistory.reduce((sum, u) => sum + u.recordCount, 0) / uploadHistory.length);
+  const totalNew = uploadHistory.reduce((sum, u) => sum + u.newRecords, 0);
+
   return (
-    <div className="space-y-6">
-      {/* Current Upload Summary */}
+    <div className="space-y-4">
+      {/* Current Upload KPIs */}
+      <div className="data-grid grid-cols-2 md:grid-cols-5">
+        <KpiCard 
+          label="Current Upload" 
+          value={currentUpload?.uploadDate ? new Date(currentUpload.uploadDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-'}
+        />
+        <KpiCard label="Total Records" value={currentUpload?.recordCount || 0} />
+        <KpiCard label="New Records" value={currentUpload?.newRecords || 0} valueColor="success" />
+        <KpiCard label="Updated" value={currentUpload?.updatedRecords || 0} valueColor="info" />
+        <KpiCard label="Upload Count (30d)" value={uploadHistory.length} />
+      </div>
+
+      {/* Current Upload Details */}
       {currentUpload && (
         <Card className="border-primary/30">
-          <CardHeader className="pb-4">
+          <CardHeader className="compact-card-header">
             <div className="flex items-center justify-between">
               <div>
-                <CardTitle className="text-base font-semibold">Current MIS Upload</CardTitle>
-                <CardDescription>Latest data snapshot in use</CardDescription>
+                <CardTitle className="compact-card-title">Current Snapshot</CardTitle>
+                <CardDescription className="text-xs mt-0.5">Active data version</CardDescription>
               </div>
-              <Badge className="bg-success text-success-foreground">Active</Badge>
+              <Badge className="bg-success/20 text-success border-0 text-[10px]">ACTIVE</Badge>
             </div>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-              <div>
-                <p className="text-muted-foreground text-sm">Upload Date</p>
-                <p className="font-semibold text-lg">{new Date(currentUpload.uploadDate).toLocaleDateString('en-US', { 
-                  year: 'numeric', 
-                  month: 'short', 
-                  day: 'numeric' 
-                })}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-sm">Upload Time</p>
-                <p className="font-semibold text-lg">{currentUpload.uploadTime}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-sm">Total Records</p>
-                <p className="font-semibold text-lg tabular-nums">{currentUpload.recordCount}</p>
-              </div>
-              <div>
-                <p className="text-muted-foreground text-sm">New / Updated</p>
-                <p className="font-semibold text-lg tabular-nums">
-                  <span className="text-success">{currentUpload.newRecords}</span>
-                  {' / '}
-                  <span className="text-info">{currentUpload.updatedRecords}</span>
-                </p>
-              </div>
-            </div>
-            <div className="mt-4 pt-4 border-t">
-              <p className="text-sm text-muted-foreground">
-                Upload ID: <span className="font-mono">{currentUpload.uploadId}</span>
-                <span className="mx-2">|</span>
-                Source: {currentUpload.uploadedBy}
-              </p>
+          <CardContent className="pt-0">
+            <div className="text-xs text-muted-foreground space-y-1">
+              <p>ID: <span className="font-mono text-foreground">{currentUpload.uploadId}</span></p>
+              <p>Source: <span className="text-foreground">{currentUpload.uploadedBy}</span></p>
+              <p>Time: <span className="text-foreground">{currentUpload.uploadTime}</span></p>
             </div>
           </CardContent>
         </Card>
       )}
 
       {/* Upload History */}
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="text-base font-semibold">MIS Upload History</CardTitle>
-          <CardDescription>
-            Historical uploads with record counts and changes tracked
-          </CardDescription>
+      <Card className="border-border">
+        <CardHeader className="compact-card-header flex-row items-center justify-between">
+          <div>
+            <CardTitle className="compact-card-title">Upload History</CardTitle>
+            <CardDescription className="text-xs mt-0.5">Historical uploads tracked</CardDescription>
+          </div>
+          <ExportButton data={exportData} filename="axis_mis_upload_history" />
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
@@ -86,21 +87,19 @@ export function MISUploadTab({ currentUpload, uploadHistory }: MISUploadTabProps
               <tbody>
                 {uploadHistory.map((upload) => (
                   <tr key={upload.uploadId}>
-                    <td className="font-mono text-sm">{upload.uploadId}</td>
+                    <td className="font-mono">{upload.uploadId}</td>
                     <td>{new Date(upload.uploadDate).toLocaleDateString('en-US', { 
-                      year: 'numeric', 
-                      month: 'short', 
-                      day: 'numeric' 
+                      month: 'short', day: 'numeric' 
                     })}</td>
-                    <td>{upload.uploadTime}</td>
+                    <td className="text-muted-foreground">{upload.uploadTime}</td>
                     <td className="text-right tabular-nums">{upload.recordCount}</td>
                     <td className="text-right tabular-nums text-success">{upload.newRecords}</td>
                     <td className="text-right tabular-nums text-info">{upload.updatedRecords}</td>
-                    <td className="text-sm">{upload.uploadedBy}</td>
+                    <td className="text-muted-foreground">{upload.uploadedBy}</td>
                     <td>
                       <Badge 
-                        variant={upload.status === 'Current' ? 'default' : 'secondary'}
-                        className={upload.status === 'Current' ? 'bg-success text-success-foreground' : ''}
+                        variant="secondary"
+                        className={upload.status === 'Current' ? 'bg-success/20 text-success border-0' : 'bg-muted text-muted-foreground border-0'}
                       >
                         {upload.status}
                       </Badge>
@@ -113,64 +112,28 @@ export function MISUploadTab({ currentUpload, uploadHistory }: MISUploadTabProps
         </CardContent>
       </Card>
 
-      {/* Upload Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Total Uploads (Last 30 Days)</CardDescription>
-            <CardTitle className="text-xl tabular-nums">{uploadHistory.length}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Average Records per Upload</CardDescription>
-            <CardTitle className="text-xl tabular-nums">
-              {Math.round(uploadHistory.reduce((sum, u) => sum + u.recordCount, 0) / uploadHistory.length)}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Upload Frequency</CardDescription>
-            <CardTitle className="text-xl">Daily (Automated)</CardTitle>
-          </CardHeader>
-        </Card>
-      </div>
-
       {/* Data Pipeline Info */}
-      <Card>
-        <CardHeader className="pb-4">
-          <CardTitle className="text-base font-semibold">Data Pipeline Configuration</CardTitle>
+      <Card className="border-border">
+        <CardHeader className="compact-card-header">
+          <CardTitle className="compact-card-title">Pipeline Configuration</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-            <div className="p-4 bg-muted/30 rounded-lg">
-              <h4 className="font-medium mb-2">Upload Schedule</h4>
-              <p className="text-muted-foreground">
-                Axis MIS files are automatically synced daily at 09:00 AM IST.
-                Manual uploads can be triggered on-demand.
-              </p>
+        <CardContent className="pt-0">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+            <div className="p-3 bg-accent rounded">
+              <p className="font-medium mb-1">Schedule</p>
+              <p className="text-muted-foreground">Daily 09:00 AM IST</p>
             </div>
-            <div className="p-4 bg-muted/30 rounded-lg">
-              <h4 className="font-medium mb-2">Data Retention</h4>
-              <p className="text-muted-foreground">
-                Upload history retained for 90 days. Only current snapshot used for reporting.
-                Historical data available for audit purposes.
-              </p>
+            <div className="p-3 bg-accent rounded">
+              <p className="font-medium mb-1">Retention</p>
+              <p className="text-muted-foreground">90 days history</p>
             </div>
-            <div className="p-4 bg-muted/30 rounded-lg">
-              <h4 className="font-medium mb-2">Validation Rules</h4>
-              <p className="text-muted-foreground">
-                All uploads validated for schema compliance, duplicate detection, 
-                and conflict resolution before activation.
-              </p>
+            <div className="p-3 bg-accent rounded">
+              <p className="font-medium mb-1">Validation</p>
+              <p className="text-muted-foreground">Schema + Duplicates</p>
             </div>
-            <div className="p-4 bg-muted/30 rounded-lg">
-              <h4 className="font-medium mb-2">Rollback Policy</h4>
-              <p className="text-muted-foreground">
-                Previous upload can be restored within 24 hours if data quality 
-                issues detected post-activation.
-              </p>
+            <div className="p-3 bg-accent rounded">
+              <p className="font-medium mb-1">Rollback</p>
+              <p className="text-muted-foreground">24h window</p>
             </div>
           </div>
         </CardContent>

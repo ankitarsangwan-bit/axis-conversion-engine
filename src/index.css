@@ -1,4 +1,5 @@
 @import url('https://fonts.cdnfonts.com/css/aptos');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -8,58 +9,103 @@
   :root {
     /* Aptos font family */
     --font-sans: 'Aptos', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
-    /* Deep banking blue palette */
-    --background: 220 20% 97%;
-    --foreground: 222 47% 11%;
+    /* Data-dense dark theme (analytics style) */
+    --background: 220 25% 10%;
+    --foreground: 210 20% 90%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card: 220 25% 12%;
+    --card-foreground: 210 20% 90%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover: 220 25% 14%;
+    --popover-foreground: 210 20% 90%;
 
-    /* Primary: Deep trust blue */
-    --primary: 222 60% 45%;
-    --primary-foreground: 0 0% 100%;
+    /* Primary: Bright blue for data accents */
+    --primary: 210 100% 56%;
+    --primary-foreground: 220 25% 10%;
 
-    /* Table header blue */
-    --table-header: 217 91% 45%;
-    --table-header-foreground: 0 0% 100%;
+    /* Table header - darker blue-gray */
+    --table-header: 215 30% 18%;
+    --table-header-foreground: 210 20% 95%;
 
-    --secondary: 220 14% 92%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 220 20% 18%;
+    --secondary-foreground: 210 20% 90%;
 
-    --muted: 220 14% 96%;
-    --muted-foreground: 220 10% 46%;
+    --muted: 220 20% 16%;
+    --muted-foreground: 215 15% 55%;
 
-    --accent: 220 14% 92%;
-    --accent-foreground: 222 47% 11%;
+    --accent: 220 20% 20%;
+    --accent-foreground: 210 20% 90%;
 
-    --destructive: 0 72% 51%;
+    --destructive: 0 72% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    /* Status colors */
-    --success: 152 60% 42%;
-    --success-foreground: 0 0% 100%;
+    /* Status colors - vibrant for dark bg */
+    --success: 152 70% 50%;
+    --success-foreground: 220 25% 10%;
     
-    --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
+    --warning: 38 95% 55%;
+    --warning-foreground: 220 25% 10%;
 
-    --info: 199 89% 48%;
-    --info-foreground: 0 0% 100%;
+    --info: 199 95% 55%;
+    --info-foreground: 220 25% 10%;
 
     /* Chart colors */
+    --chart-primary: 210 100% 56%;
+    --chart-secondary: 152 70% 50%;
+    --chart-tertiary: 38 95% 55%;
+    --chart-quaternary: 280 70% 60%;
+
+    --border: 220 20% 20%;
+    --input: 220 20% 18%;
+    --ring: 210 100% 56%;
+
+    --radius: 0.375rem;
+
+    /* Sidebar - slightly darker */
+    --sidebar-background: 220 25% 8%;
+    --sidebar-foreground: 215 15% 65%;
+    --sidebar-primary: 210 100% 56%;
+    --sidebar-primary-foreground: 220 25% 10%;
+    --sidebar-accent: 220 20% 14%;
+    --sidebar-accent-foreground: 210 20% 90%;
+    --sidebar-border: 220 20% 15%;
+    --sidebar-ring: 210 100% 56%;
+  }
+
+  /* Light mode override if needed */
+  .light {
+    --background: 220 20% 97%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 222 60% 45%;
+    --primary-foreground: 0 0% 100%;
+    --table-header: 217 91% 45%;
+    --table-header-foreground: 0 0% 100%;
+    --secondary: 220 14% 92%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 10% 46%;
+    --accent: 220 14% 92%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --success: 152 60% 42%;
+    --success-foreground: 0 0% 100%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --info: 199 89% 48%;
+    --info-foreground: 0 0% 100%;
     --chart-primary: 217 91% 45%;
     --chart-secondary: 152 60% 42%;
     --chart-tertiary: 38 92% 50%;
-
     --border: 220 13% 91%;
     --input: 220 13% 91%;
     --ring: 222 60% 45%;
-
-    --radius: 0.5rem;
-
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
@@ -68,49 +114,6 @@
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
-  }
-
-  .dark {
-    --background: 222 47% 6%;
-    --foreground: 210 40% 98%;
-
-    --card: 222 47% 8%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222 47% 8%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 6%;
-
-    --table-header: 217 91% 35%;
-    --table-header-foreground: 0 0% 100%;
-
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 63% 31%;
-    --destructive-foreground: 210 40% 98%;
-
-    --success: 152 60% 35%;
-    --success-foreground: 0 0% 100%;
-    
-    --warning: 38 92% 45%;
-    --warning-foreground: 0 0% 100%;
-
-    --chart-primary: 217 91% 60%;
-    --chart-secondary: 152 60% 45%;
-    --chart-tertiary: 38 92% 55%;
-
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-    --ring: 217 91% 60%;
   }
 }
 
@@ -122,53 +125,104 @@
   body {
     @apply bg-background text-foreground antialiased;
     font-family: var(--font-sans);
-    font-size: 10pt;
+    font-size: 11px;
+    line-height: 1.4;
   }
 }
 
 @layer components {
   .status-badge {
-    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+    @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium;
   }
   
   .status-completed {
-    @apply bg-success/10 text-success;
+    @apply bg-success/20 text-success;
   }
   
   .status-pending {
-    @apply bg-warning/10 text-warning;
+    @apply bg-warning/20 text-warning;
   }
   
   .quality-good {
-    @apply bg-primary/10 text-primary;
+    @apply bg-primary/20 text-primary;
   }
   
   .quality-average {
-    @apply bg-info/10 text-info;
+    @apply bg-info/20 text-info;
   }
   
   .quality-rejected {
-    @apply bg-destructive/10 text-destructive;
+    @apply bg-destructive/20 text-destructive;
   }
 
-  /* Professional table styling with blue headers */
+  /* Data-dense professional table */
   .professional-table {
-    @apply w-full border-collapse;
+    @apply w-full border-collapse text-xs;
   }
 
   .professional-table th {
-    @apply bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))] font-semibold text-left px-3 py-2 border border-border whitespace-nowrap;
+    @apply bg-[hsl(var(--table-header))] text-[hsl(var(--table-header-foreground))] font-semibold text-left px-2 py-1.5 border-b border-border whitespace-nowrap uppercase tracking-wider;
+    font-size: 10px;
   }
 
   .professional-table td {
-    @apply px-3 py-2 border border-border;
+    @apply px-2 py-1.5 border-b border-border/50;
   }
 
-  .professional-table tr:hover td {
-    @apply bg-muted/30;
+  .professional-table tbody tr:hover td {
+    @apply bg-accent/50;
   }
 
   .professional-table .total-row td {
-    @apply bg-muted/70 font-semibold;
+    @apply bg-accent font-semibold border-t-2 border-primary/30;
+  }
+
+  /* KPI Card with sparkline */
+  .kpi-card {
+    @apply bg-card border border-border rounded-md p-3;
+  }
+
+  .kpi-card-value {
+    @apply text-2xl font-bold tabular-nums tracking-tight;
+  }
+
+  .kpi-card-label {
+    @apply text-xs text-muted-foreground uppercase tracking-wider;
+  }
+
+  .kpi-card-delta {
+    @apply text-xs font-medium tabular-nums;
+  }
+
+  .kpi-card-delta.positive {
+    @apply text-success;
+  }
+
+  .kpi-card-delta.negative {
+    @apply text-destructive;
+  }
+
+  /* Compact card headers */
+  .compact-card-header {
+    @apply pb-2 pt-3 px-3;
+  }
+
+  .compact-card-title {
+    @apply text-sm font-semibold tracking-tight;
+  }
+
+  /* Sidebar active state */
+  .sidebar-item-active {
+    @apply bg-sidebar-accent text-sidebar-primary font-medium border-l-2 border-primary;
+  }
+
+  /* Data grid layout */
+  .data-grid {
+    @apply grid gap-3;
+  }
+
+  /* Export button */
+  .export-btn {
+    @apply inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded border border-border bg-card hover:bg-accent transition-colors;
   }
 }
