@@ -187,15 +187,37 @@ export function useMISUpload() {
 
     setState(prev => ({ ...prev, isProcessing: true }));
 
-    // Fetch existing records from database with no row limit
-    const { data: existingRecords } = await supabase
-      .from('mis_records')
-      .select('application_id, blaze_output, login_status, final_status, vkyc_status, core_non_core, vkyc_eligible, last_updated_date, month')
-      .range(0, 100000);
+    // Fetch existing records from database - fetch in batches to avoid limits
+    let allExistingRecords: any[] = [];
+    let from = 0;
+    const batchSize = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data: batch, error } = await supabase
+        .from('mis_records')
+        .select('application_id, blaze_output, login_status, final_status, vkyc_status, core_non_core, vkyc_eligible, last_updated_date, month')
+        .range(from, from + batchSize - 1);
+
+      if (error) {
+        console.error('Error fetching records batch:', error);
+        break;
+      }
+
+      if (batch && batch.length > 0) {
+        allExistingRecords = [...allExistingRecords, ...batch];
+        from += batchSize;
+        hasMore = batch.length === batchSize;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    console.log(`Fetched ${allExistingRecords.length} existing records for comparison`);
 
     // Build a lookup of current data by application_id
     const currentDataMap = new Map(
-      (existingRecords || []).map((app: any) => [app.application_id, app])
+      allExistingRecords.map((app: any) => [app.application_id, app])
     );
 
     // Build column mapping lookup

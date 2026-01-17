@@ -138,14 +138,34 @@ function mapUploadFromDB(upload: any): MISUpload {
 
 // Compute dashboard data from database records
 async function computeDashboardFromDB(): Promise<DashboardData> {
-  // Fetch all records - remove default 1000 limit
-  const { data: records, count } = await supabase
-    .from('mis_records')
-    .select('*', { count: 'exact' })
-    .range(0, 100000);
+  // Fetch all records in batches to avoid Supabase 1000 row limit
+  let allRecords: any[] = [];
+  let from = 0;
+  const batchSize = 1000;
+  let hasMore = true;
 
-  console.log(`Fetched ${records?.length || 0} records from database (total count: ${count})`);
+  while (hasMore) {
+    const { data: batch, error } = await supabase
+      .from('mis_records')
+      .select('*')
+      .range(from, from + batchSize - 1);
 
+    if (error) {
+      console.error('Error fetching records batch:', error);
+      break;
+    }
+
+    if (batch && batch.length > 0) {
+      allRecords = [...allRecords, ...batch];
+      from += batchSize;
+      hasMore = batch.length === batchSize;
+    } else {
+      hasMore = false;
+    }
+  }
+
+  console.log(`Fetched ${allRecords.length} records from database`);
+  const records = allRecords;
 
   const { data: uploads } = await supabase
     .from('mis_uploads')
@@ -156,12 +176,12 @@ async function computeDashboardFromDB(): Promise<DashboardData> {
     .from('data_conflicts')
     .select('*')
     .eq('resolution', 'pending')
-    .range(0, 100000);
+    .limit(1000); // Conflicts are usually fewer
 
   const { data: vkycData } = await supabase
     .from('vkyc_metrics')
     .select('*')
-    .range(0, 100000);
+    .limit(1000); // VKYC metrics are aggregated
 
   // Process MIS records into dashboard format using stored computed fields
   const processedRecords = (records || []).map((r: any) => ({
