@@ -4,7 +4,8 @@ import {
   deriveLeadQuality, 
   isKycCompleted, 
   isCardApproved,
-  getMonthFromDate 
+  getMonthFromDate,
+  normalizeBlazeOutput
 } from '@/types/axis';
 
 export async function saveMISUpload(
@@ -50,7 +51,8 @@ export async function saveMISUpload(
       for (let i = 0; i < changePreview.newRecords.length; i += batchSize) {
         const batch = changePreview.newRecords.slice(i, i + batchSize);
         const newRecordsToInsert = batch.map(r => {
-          const blazeOutput = String(r.newValues?.blaze_output || '');
+          // Normalize blaze_output - default empty to STPK
+          const blazeOutput = normalizeBlazeOutput(r.newValues?.blaze_output as string);
           const loginStatus = r.newValues?.login_status ? String(r.newValues.login_status) : null;
           const finalStatus = String(r.newValues?.final_status || '');
           const vkycStatus = String(r.newValues?.vkyc_status || '');
@@ -69,7 +71,7 @@ export async function saveMISUpload(
             upload_id: upload.id,
             application_id: r.application_id,
             month: month,
-            blaze_output: blazeOutput,
+            blaze_output: blazeOutput, // Will be 'STPK' if empty
             login_status: loginStatus,
             final_status: finalStatus,
             vkyc_status: vkycStatus,
@@ -99,7 +101,8 @@ export async function saveMISUpload(
 
     // Update existing records
     for (const record of changePreview.updatedRecords) {
-      const blazeOutput = String(record.newValues?.blaze_output || '');
+      // Normalize blaze_output - default empty to STPK
+      const blazeOutput = normalizeBlazeOutput(record.newValues?.blaze_output as string);
       const loginStatus = record.newValues?.login_status ? String(record.newValues.login_status) : null;
       const finalStatus = String(record.newValues?.final_status || '');
       const vkycStatus = String(record.newValues?.vkyc_status || '');
@@ -117,7 +120,7 @@ export async function saveMISUpload(
       const updateData: Record<string, any> = {
         upload_id: upload.id,
         last_updated_date: lastUpdatedDate,
-        blaze_output: blazeOutput,
+        blaze_output: blazeOutput, // Will be 'STPK' if empty
         login_status: loginStatus,
         final_status: finalStatus,
         vkyc_status: vkycStatus,

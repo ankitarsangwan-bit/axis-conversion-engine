@@ -129,8 +129,9 @@ export interface ConflictRecord {
 }
 
 // Lead Quality derivation from BLAZE_OUTPUT
+// When blaze_output is empty/missing, treat as STPK (Good quality)
 export function deriveLeadQuality(blazeOutput: string): LeadQuality {
-  const normalized = blazeOutput?.toUpperCase()?.trim() || '';
+  const normalized = blazeOutput?.toUpperCase()?.trim() || 'STPK'; // Default to STPK if empty
   
   if (normalized === 'STPT' || normalized === 'STPI') {
     return 'Average';
@@ -140,7 +141,14 @@ export function deriveLeadQuality(blazeOutput: string): LeadQuality {
     return 'Rejected';
   }
   
+  // STPK and all other values (including empty defaulting to STPK) are Good
   return 'Good';
+}
+
+// Normalize blaze_output - default empty to STPK
+export function normalizeBlazeOutput(blazeOutput: string | null | undefined): string {
+  const val = blazeOutput?.toUpperCase()?.trim() || '';
+  return val === '' ? 'STPK' : val;
 }
 
 // Genuine post-KYC outcomes (can ONLY happen after KYC completion)
