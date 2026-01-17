@@ -19,12 +19,12 @@ export const REQUIRED_COLUMNS = [
   'login_status',
   'final_status',
   'last_updated_date',
+  'vkyc_status',
+  'core_non_core',
 ] as const;
 
 export const OPTIONAL_COLUMNS = [
   'vkyc_eligible',
-  'vkyc_status',
-  'core_non_core',
 ] as const;
 
 export type RequiredColumn = typeof REQUIRED_COLUMNS[number];
