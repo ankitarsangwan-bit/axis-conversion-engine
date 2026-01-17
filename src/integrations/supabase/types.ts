@@ -14,7 +14,256 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      data_conflicts: {
+        Row: {
+          application_id: string
+          created_at: string
+          field_name: string
+          id: string
+          new_value: string | null
+          old_value: string | null
+          resolution: string | null
+          resolved_at: string | null
+          upload_id: string | null
+        }
+        Insert: {
+          application_id: string
+          created_at?: string
+          field_name: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          resolution?: string | null
+          resolved_at?: string | null
+          upload_id?: string | null
+        }
+        Update: {
+          application_id?: string
+          created_at?: string
+          field_name?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+          resolution?: string | null
+          resolved_at?: string | null
+          upload_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "data_conflicts_upload_id_fkey"
+            columns: ["upload_id"]
+            isOneToOne: false
+            referencedRelation: "mis_uploads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      data_freshness: {
+        Row: {
+          created_at: string
+          id: string
+          last_updated: string
+          latency_hours: number | null
+          record_count: number | null
+          source_name: string
+          source_type: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_updated?: string
+          latency_hours?: number | null
+          record_count?: number | null
+          source_name: string
+          source_type?: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_updated?: string
+          latency_hours?: number | null
+          record_count?: number | null
+          source_name?: string
+          source_type?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      mis_records: {
+        Row: {
+          application_id: string
+          applications: number | null
+          bureau_pass: number | null
+          created_at: string
+          dedupe_pass: number | null
+          disbursed: number | null
+          disbursement_amount: number | null
+          id: string
+          last_updated_date: string | null
+          month: string
+          product: string | null
+          rejection_reason: string | null
+          state: string | null
+          upload_id: string | null
+          vkyc_pass: number | null
+        }
+        Insert: {
+          application_id: string
+          applications?: number | null
+          bureau_pass?: number | null
+          created_at?: string
+          dedupe_pass?: number | null
+          disbursed?: number | null
+          disbursement_amount?: number | null
+          id?: string
+          last_updated_date?: string | null
+          month: string
+          product?: string | null
+          rejection_reason?: string | null
+          state?: string | null
+          upload_id?: string | null
+          vkyc_pass?: number | null
+        }
+        Update: {
+          application_id?: string
+          applications?: number | null
+          bureau_pass?: number | null
+          created_at?: string
+          dedupe_pass?: number | null
+          disbursed?: number | null
+          disbursement_amount?: number | null
+          id?: string
+          last_updated_date?: string | null
+          month?: string
+          product?: string | null
+          rejection_reason?: string | null
+          state?: string | null
+          upload_id?: string | null
+          vkyc_pass?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mis_records_upload_id_fkey"
+            columns: ["upload_id"]
+            isOneToOne: false
+            referencedRelation: "mis_uploads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mis_uploads: {
+        Row: {
+          created_at: string
+          file_name: string | null
+          id: string
+          new_records: number
+          record_count: number
+          status: string
+          updated_records: number
+          upload_date: string
+          upload_id: string
+          upload_time: string
+          uploaded_by: string
+        }
+        Insert: {
+          created_at?: string
+          file_name?: string | null
+          id?: string
+          new_records?: number
+          record_count?: number
+          status?: string
+          updated_records?: number
+          upload_date?: string
+          upload_id: string
+          upload_time?: string
+          uploaded_by?: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string | null
+          id?: string
+          new_records?: number
+          record_count?: number
+          status?: string
+          updated_records?: number
+          upload_date?: string
+          upload_id?: string
+          upload_time?: string
+          uploaded_by?: string
+        }
+        Relationships: []
+      }
+      quality_metrics: {
+        Row: {
+          common_issues: Json | null
+          created_at: string
+          id: string
+          invalid_records: number | null
+          metric_type: string
+          record_date: string
+          total_records: number | null
+          valid_records: number | null
+          validation_rate: number | null
+        }
+        Insert: {
+          common_issues?: Json | null
+          created_at?: string
+          id?: string
+          invalid_records?: number | null
+          metric_type: string
+          record_date?: string
+          total_records?: number | null
+          valid_records?: number | null
+          validation_rate?: number | null
+        }
+        Update: {
+          common_issues?: Json | null
+          created_at?: string
+          id?: string
+          invalid_records?: number | null
+          metric_type?: string
+          record_date?: string
+          total_records?: number | null
+          valid_records?: number | null
+          validation_rate?: number | null
+        }
+        Relationships: []
+      }
+      vkyc_metrics: {
+        Row: {
+          created_at: string
+          face_match_done: number | null
+          id: string
+          month: string
+          state: string | null
+          vkyc_attempted: number | null
+          vkyc_completed: number | null
+          vkyc_initiated: number | null
+        }
+        Insert: {
+          created_at?: string
+          face_match_done?: number | null
+          id?: string
+          month: string
+          state?: string | null
+          vkyc_attempted?: number | null
+          vkyc_completed?: number | null
+          vkyc_initiated?: number | null
+        }
+        Update: {
+          created_at?: string
+          face_match_done?: number | null
+          id?: string
+          month?: string
+          state?: string | null
+          vkyc_attempted?: number | null
+          vkyc_completed?: number | null
+          vkyc_initiated?: number | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

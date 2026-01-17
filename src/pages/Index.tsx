@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, Suspense, lazy, useCallback } from 'react';
+import { useState, Suspense, lazy, useCallback } from 'react';
 import { DateRange } from 'react-day-picker';
 import { subMonths } from 'date-fns';
 import { RefreshCw } from 'lucide-react';
@@ -6,24 +6,13 @@ import { Button } from '@/components/ui/button';
 import { AppSidebar } from '@/components/AppSidebar';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { DateRangeFilter } from '@/components/DateRangeFilter';
+import { useDashboardData } from '@/hooks/useDashboardData';
 import { 
   FullViewSkeleton,
   QualityViewSkeleton,
   DataFreshnessSkeleton,
   TableSkeleton
 } from '@/components/dashboard/DashboardSkeleton';
-import { 
-  getAxisSummaryByMonth, 
-  getAxisTotals, 
-  getQualitySummary,
-  getDataFreshness,
-  getConflictRecords,
-  getUploadSummary,
-  getMISUploadHistory,
-  getCurrentMISUpload,
-  getVkycFunnelMetrics,
-  getVkycFunnelByMonth
-} from '@/data/sampleAxisData';
 
 // Lazy load tab components
 const FullViewTab = lazy(() => import('@/components/dashboard/FullViewTab').then(m => ({ default: m.FullViewTab })));
@@ -40,37 +29,17 @@ function Index() {
     from: subMonths(new Date(), 3),
     to: new Date(),
   });
-  const [isLoading, setIsLoading] = useState(true);
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [refreshKey, setRefreshKey] = useState(0);
 
-  // Simulate initial data load
-  useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 300);
-    return () => clearTimeout(timer);
-  }, []);
+  // Use the dashboard data hook
+  const { data, isLoading, refresh } = useDashboardData();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Refresh handler
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
-    // Simulate data refresh
-    setTimeout(() => {
-      setRefreshKey(prev => prev + 1);
-      setIsRefreshing(false);
-    }, 800);
-  }, []);
-
-  // Memoize expensive data calculations - refresh when refreshKey changes
-  const summaryRows = useMemo(() => getAxisSummaryByMonth(), [refreshKey]);
-  const totals = useMemo(() => getAxisTotals(), [refreshKey]);
-  const qualityRows = useMemo(() => getQualitySummary(), [refreshKey]);
-  const freshnessRows = useMemo(() => getDataFreshness(), [refreshKey]);
-  const conflicts = useMemo(() => getConflictRecords(), [refreshKey]);
-  const uploadSummary = useMemo(() => getUploadSummary(), [refreshKey]);
-  const misUploadHistory = useMemo(() => getMISUploadHistory(), [refreshKey]);
-  const currentMISUpload = useMemo(() => getCurrentMISUpload(), [refreshKey]);
-  const vkycFunnelMetrics = useMemo(() => getVkycFunnelMetrics(), [refreshKey]);
-  const vkycFunnelByMonth = useMemo(() => getVkycFunnelByMonth(), [refreshKey]);
+    await refresh();
+    setIsRefreshing(false);
+  }, [refresh]);
 
   const getSkeleton = () => {
     switch (activeTab) {
@@ -86,7 +55,7 @@ function Index() {
   };
 
   const renderContent = () => {
-    if (isLoading) {
+    if (isLoading || !data) {
       return getSkeleton();
     }
 
@@ -95,19 +64,28 @@ function Index() {
         {(() => {
           switch (activeTab) {
             case 'full-view':
-              return <FullViewTab summaryRows={summaryRows} totals={totals} />;
+              return <FullViewTab summaryRows={data.summaryRows} totals={data.totals} />;
             case 'quality-view':
-              return <QualityViewTab qualityRows={qualityRows} />;
+              return <QualityViewTab qualityRows={data.qualityRows} />;
             case 'mis-upload':
-              return <MISUploadTab currentUpload={currentMISUpload} uploadHistory={misUploadHistory} onViewDashboard={() => setActiveTab('full-view')} />;
+              return (
+                <MISUploadTab 
+                  currentUpload={data.currentMISUpload} 
+                  uploadHistory={data.misUploadHistory} 
+                  onViewDashboard={() => {
+                    handleRefresh();
+                    setActiveTab('full-view');
+                  }} 
+                />
+              );
             case 'data-freshness':
-              return <DataFreshnessTab freshnessRows={freshnessRows} uploadSummary={uploadSummary} />;
+              return <DataFreshnessTab freshnessRows={data.freshnessRows} uploadSummary={data.uploadSummary} />;
             case 'stpk-vkyc':
-              return <StpkVkycTab funnelMetrics={vkycFunnelMetrics} funnelByMonth={vkycFunnelByMonth} />;
+              return <StpkVkycTab funnelMetrics={data.vkycFunnelMetrics} funnelByMonth={data.vkycFunnelByMonth} />;
             case 'conflicts':
-              return <ConflictResolutionTab conflicts={conflicts} />;
+              return <ConflictResolutionTab conflicts={data.conflicts} />;
             default:
-              return <FullViewTab summaryRows={summaryRows} totals={totals} />;
+              return <FullViewTab summaryRows={data.summaryRows} totals={data.totals} />;
           }
         })()}
       </Suspense>
@@ -144,12 +122,14 @@ function Index() {
             <h1 className="text-sm font-semibold text-foreground">{getPageTitle()}</h1>
             <span className="text-xs text-muted-foreground">|</span>
             <span className="text-xs text-muted-foreground">
-              Last updated: {new Date().toLocaleDateString('en-US', { 
-                month: 'short', 
-                day: 'numeric', 
-                hour: '2-digit', 
-                minute: '2-digit' 
-              })}
+              Last updated: {data?.currentMISUpload?.uploadDate 
+                ? new Date(data.currentMISUpload.uploadDate).toLocaleDateString('en-US', { 
+                    month: 'short', 
+                    day: 'numeric', 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })
+                : 'Loading...'}
             </span>
           </div>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -157,7 +137,7 @@ function Index() {
               variant="ghost"
               size="sm"
               onClick={handleRefresh}
-              disabled={isRefreshing}
+              disabled={isRefreshing || isLoading}
               className="h-7 px-2 gap-1.5"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
