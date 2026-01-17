@@ -29,18 +29,33 @@ export function deriveLeadQuality(blazeOutput: string): LeadQuality {
   return 'Good';
 }
 
+// Genuine post-KYC outcomes (can ONLY happen after KYC completion)
+const POST_KYC_OUTCOMES = ['APPROVED', 'DISBURSED', 'LOGGED', 'CARD DISPATCHED', 'SANCTIONED'];
+
 // KYC Completion check
 // Conversion = KYC Completed when:
 // - LOGIN STATUS is present (Login / Login 26) OR
-// - FINAL STATUS is not equal to IPA
+// - FINAL STATUS is a genuine post-KYC outcome (Approved, Disbursed, etc.)
+// 
+// IMPORTANT: Bank auto-declines (Declined, Pending, Pending Review) WITHOUT login
+// are NOT KYC completions - they remain KYC Pending
 export function isKycCompleted(loginStatus: string | null, finalStatus: string): boolean {
+  // Check if login status is present
   const hasLoginStatus = loginStatus !== null && 
     loginStatus !== '' && 
-    (loginStatus.toLowerCase().includes('login'));
+    loginStatus.toLowerCase().includes('login');
   
-  const finalStatusNotIPA = finalStatus?.toUpperCase()?.trim() !== 'IPA';
+  if (hasLoginStatus) {
+    return true;
+  }
   
-  return hasLoginStatus || finalStatusNotIPA;
+  // Check if final status is a genuine post-KYC outcome
+  const normalizedFinalStatus = finalStatus?.toUpperCase()?.trim() || '';
+  const isPostKycOutcome = POST_KYC_OUTCOMES.some(outcome => 
+    normalizedFinalStatus.includes(outcome)
+  );
+  
+  return isPostKycOutcome;
 }
 
 export function getKycStatusDisplay(kycCompleted: boolean): KycStatus {
