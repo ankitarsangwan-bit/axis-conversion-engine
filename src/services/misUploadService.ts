@@ -5,7 +5,8 @@ import {
   isKycCompleted, 
   isCardApproved,
   getMonthFromDate,
-  normalizeBlazeOutput
+  normalizeBlazeOutput,
+  normalizeCoreNonCore
 } from '@/types/axis';
 
 export async function saveMISUpload(
@@ -56,7 +57,7 @@ export async function saveMISUpload(
           const loginStatus = r.newValues?.login_status ? String(r.newValues.login_status) : null;
           const finalStatus = String(r.newValues?.final_status || '');
           const vkycStatus = String(r.newValues?.vkyc_status || '');
-          const coreNonCore = String(r.newValues?.core_non_core || '');
+          const coreNonCore = normalizeCoreNonCore(r.newValues?.core_non_core as string); // Default to 'Core' if empty
           const lastUpdatedDate = r.newValues?.last_updated_date 
             ? String(r.newValues.last_updated_date) 
             : new Date().toISOString();
@@ -75,7 +76,7 @@ export async function saveMISUpload(
             login_status: loginStatus,
             final_status: finalStatus,
             vkyc_status: vkycStatus,
-            core_non_core: coreNonCore,
+            core_non_core: coreNonCore, // Will be 'Core' if empty
             vkyc_eligible: r.newValues?.vkyc_eligible ? String(r.newValues.vkyc_eligible) : null,
             lead_quality: leadQuality,
             kyc_completed: kycCompleted,
@@ -106,7 +107,7 @@ export async function saveMISUpload(
       const loginStatus = record.newValues?.login_status ? String(record.newValues.login_status) : null;
       const finalStatus = String(record.newValues?.final_status || '');
       const vkycStatus = String(record.newValues?.vkyc_status || '');
-      const coreNonCore = String(record.newValues?.core_non_core || '');
+      const coreNonCore = normalizeCoreNonCore(record.newValues?.core_non_core as string); // Default to 'Core' if empty
       const lastUpdatedDate = record.newValues?.last_updated_date 
         ? String(record.newValues.last_updated_date) 
         : new Date().toISOString();
@@ -124,7 +125,7 @@ export async function saveMISUpload(
         login_status: loginStatus,
         final_status: finalStatus,
         vkyc_status: vkycStatus,
-        core_non_core: coreNonCore,
+        core_non_core: coreNonCore, // Will be 'Core' if empty
         lead_quality: leadQuality,
         kyc_completed: kycCompleted,
         month: month,
