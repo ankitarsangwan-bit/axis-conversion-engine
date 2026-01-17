@@ -363,17 +363,17 @@ export function useMISUpload() {
   };
 }
 
-// Column name aliases for smart matching
+// Column name aliases for smart matching - includes exact Axis Excel headers
 const COLUMN_ALIASES: Record<string, string[]> = {
   'application_id': ['application_id', 'app_id', 'applicationid', 'appid', 'application id', 'app id', 'id'],
-  'blaze_output': ['blaze_output', 'blazeoutput', 'blaze output', 'blaze', 'blaze_op', 'blazeop'],
-  'login_status': ['login_status', 'loginstatus', 'login status', 'login_st', 'login', 'loginstages'],
-  'final_status': ['final_status', 'finalstatus', 'final status', 'final_st', 'finalst', 'status', 'final'],
+  'blaze_output': ['blaze_output', 'blazeoutput', 'blaze output', 'blaze', 'blaze_op', 'blazeop', 'BLAZE_OUTPUT'],
+  'login_status': ['login_status', 'loginstatus', 'login status', 'login_st', 'login', 'loginstages', 'LOGIN STATUS'],
+  'final_status': ['final_status', 'finalstatus', 'final status', 'final_st', 'finalst', 'status', 'final', 'FINAL STATUS'],
   'last_updated_date': ['last_updated_date', 'lastupdateddate', 'last updated date', 'update_date', 'updatedate', 'updated_date', 'updateddate', 'date', 'lastupdate'],
-  'vkyc_status': ['vkyc_status', 'vkycstatus', 'vkyc status', 'vkyc_st', 'vkycst', 'vkyc', 'v_kyc_status'],
-  'core_non_core': ['core_non_core', 'corenoncore', 'core non core', 'core_noncore', 'corenoncore', 'core/non-core', 'core / non-core', 'core', 'noncore'],
+  'vkyc_status': ['vkyc_status', 'vkycstatus', 'vkyc status', 'vkyc_st', 'vkycst', 'vkyc', 'v_kyc_status', 'vkyc Status'],
+  'core_non_core': ['core_non_core', 'corenoncore', 'core non core', 'core_noncore', 'core/non-core', 'core / non-core', 'core', 'noncore', 'Core/Noncore', 'corenoncore'],
   'vkyc_eligible': ['vkyc_eligible', 'vkyceligible', 'vkyc eligible', 'vkyc_elig', 'vkycelig', 'eligibility'],
-  'rejection_reason': ['rejection_reason', 'rejectionreason', 'rejection reason', 'reject_reason', 'rejectreason', 'decline_reason', 'declinereason', 'decline reason'],
+  'rejection_reason': ['rejection_reason', 'rejectionreason', 'rejection reason', 'reject_reason', 'rejectreason', 'decline_reason', 'declinereason', 'decline reason', 'Reason'],
   'state': ['state', 'st', 'location_state'],
   'product': ['product', 'prod', 'product_name', 'productname'],
 };
