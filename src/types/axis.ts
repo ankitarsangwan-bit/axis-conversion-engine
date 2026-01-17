@@ -53,6 +53,60 @@ export interface DataFreshnessRow {
   newApplications: number;
 }
 
+// MIS Upload history
+export interface MISUpload {
+  uploadId: string;
+  uploadDate: string;
+  uploadTime: string;
+  recordCount: number;
+  newRecords: number;
+  updatedRecords: number;
+  status: 'Current' | 'Historical';
+  uploadedBy: string;
+}
+
+// STPK/VKYC Deep-Dive Types
+export type VkycStatus = 'Approved' | 'Rejected' | 'Dropped' | 'Not Eligible';
+export type CoreNonCore = 'Core' | 'Non-Core';
+
+export interface StpkApplication {
+  application_id: string;
+  blaze_output: string; // STPK
+  login_status: string | null;
+  final_status: string;
+  vkyc_eligible: boolean;
+  vkyc_status: VkycStatus;
+  core_non_core: CoreNonCore;
+  physical_login_achieved: boolean;
+  card_approved: boolean;
+  last_updated_date: string;
+}
+
+export interface VkycFunnelMetrics {
+  // Top of funnel
+  totalStpk: number;
+  vkycEligible: number;
+  
+  // VKYC Outcomes
+  vkycApproved: number;
+  vkycRejected: number;
+  vkycDropped: number; // Neither approved nor rejected
+  
+  // Core vs Non-Core split
+  vkycApprovedCore: number;
+  vkycApprovedNonCore: number;
+  vkycRejectedCore: number;
+  vkycRejectedNonCore: number;
+  
+  // Cards approved paths
+  cardsFromVkycApproved: number; // Pure digital
+  cardsFromVkycRejectedPhysical: number; // VKYC rejected → physical login
+  cardsFromNoVkycPhysical: number; // No VKYC → physical login
+  
+  // Physical drop-offs
+  physicalDropoffs: number; // VKYC not approved/rejected AND no login
+}
+
 // Conflict resolution types
 export type ConflictType = 
   | 'LOGIN_IPA_CONFLICT'      // Login present but status is IPA
