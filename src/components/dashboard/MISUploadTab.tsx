@@ -10,9 +10,10 @@ import { Upload, History } from 'lucide-react';
 interface MISUploadTabProps {
   currentUpload: MISUpload | undefined;
   uploadHistory: MISUpload[];
+  onViewDashboard?: () => void;
 }
 
-export function MISUploadTab({ currentUpload, uploadHistory }: MISUploadTabProps) {
+export function MISUploadTab({ currentUpload, uploadHistory, onViewDashboard }: MISUploadTabProps) {
   const exportData = uploadHistory.map(u => ({
     'Upload ID': u.uploadId,
     'Date': u.uploadDate,
@@ -52,7 +53,7 @@ export function MISUploadTab({ currentUpload, uploadHistory }: MISUploadTabProps
         </TabsList>
 
         <TabsContent value="upload" className="mt-4">
-          <MISUploadWizard />
+          <MISUploadWizard onViewDashboard={onViewDashboard} />
         </TabsContent>
 
         <TabsContent value="history" className="mt-4 space-y-4">

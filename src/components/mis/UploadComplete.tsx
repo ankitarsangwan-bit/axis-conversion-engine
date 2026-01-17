@@ -1,4 +1,4 @@
-import { CheckCircle2, RotateCcw, ExternalLink } from 'lucide-react';
+import { CheckCircle2, RotateCcw, LayoutDashboard } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ChangePreview } from '@/types/misUpload';
@@ -6,9 +6,10 @@ import { ChangePreview } from '@/types/misUpload';
 interface UploadCompleteProps {
   changePreview: ChangePreview;
   onReset: () => void;
+  onViewDashboard?: () => void;
 }
 
-export function UploadComplete({ changePreview, onReset }: UploadCompleteProps) {
+export function UploadComplete({ changePreview, onReset, onViewDashboard }: UploadCompleteProps) {
   const { newRecords, updatedRecords } = changePreview;
   const totalChanges = newRecords.length + updatedRecords.length;
 
@@ -33,11 +34,9 @@ export function UploadComplete({ changePreview, onReset }: UploadCompleteProps) 
             <RotateCcw className="w-3.5 h-3.5 mr-1.5" />
             Upload Another File
           </Button>
-          <Button size="sm" asChild>
-            <a href="#full-view">
-              <ExternalLink className="w-3.5 h-3.5 mr-1.5" />
-              View Dashboard
-            </a>
+          <Button size="sm" onClick={onViewDashboard}>
+            <LayoutDashboard className="w-3.5 h-3.5 mr-1.5" />
+            View Dashboard
           </Button>
         </div>
       </CardContent>

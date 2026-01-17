@@ -99,7 +99,7 @@ function Index() {
             case 'quality-view':
               return <QualityViewTab qualityRows={qualityRows} />;
             case 'mis-upload':
-              return <MISUploadTab currentUpload={currentMISUpload} uploadHistory={misUploadHistory} />;
+              return <MISUploadTab currentUpload={currentMISUpload} uploadHistory={misUploadHistory} onViewDashboard={() => setActiveTab('full-view')} />;
             case 'data-freshness':
               return <DataFreshnessTab freshnessRows={freshnessRows} uploadSummary={uploadSummary} />;
             case 'stpk-vkyc':
