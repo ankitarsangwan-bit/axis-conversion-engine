@@ -1,11 +1,3 @@
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { DataFreshnessRow } from '@/types/axis';
 
@@ -27,25 +19,25 @@ export function DataFreshnessTab({ freshnessRows, uploadSummary }: DataFreshness
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Last MIS Upload</CardDescription>
-            <CardTitle className="text-xl">{uploadSummary.lastUploadDate}</CardTitle>
+            <CardTitle className="text-lg">{uploadSummary.lastUploadDate}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Total Records</CardDescription>
-            <CardTitle className="text-xl tabular-nums">{uploadSummary.totalRecords}</CardTitle>
+            <CardTitle className="text-lg tabular-nums">{uploadSummary.totalRecords}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Date Range</CardDescription>
-            <CardTitle className="text-xl">{uploadSummary.dateRange.from} – {uploadSummary.dateRange.to}</CardTitle>
+            <CardTitle className="text-lg">{uploadSummary.dateRange.from} – {uploadSummary.dateRange.to}</CardTitle>
           </CardHeader>
         </Card>
         <Card className={uploadSummary.conflictCount > 0 ? 'border-warning/50' : ''}>
           <CardHeader className="pb-2">
             <CardDescription>Data Conflicts</CardDescription>
-            <CardTitle className={`text-xl tabular-nums ${uploadSummary.conflictCount > 0 ? 'text-warning' : 'text-success'}`}>
+            <CardTitle className={`text-lg tabular-nums ${uploadSummary.conflictCount > 0 ? 'text-warning' : 'text-success'}`}>
               {uploadSummary.conflictCount}
             </CardTitle>
           </CardHeader>
@@ -55,35 +47,35 @@ export function DataFreshnessTab({ freshnessRows, uploadSummary }: DataFreshness
       {/* Monthly Freshness Table */}
       <Card>
         <CardHeader className="pb-4">
-          <CardTitle className="text-lg font-semibold">Data Freshness by Month</CardTitle>
+          <CardTitle className="text-base font-semibold">Data Freshness by Month</CardTitle>
           <CardDescription>
             MIS recency and status change tracking. Rolling logic ensures latest status is always used.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50 hover:bg-muted/50">
-                  <TableHead className="font-semibold whitespace-nowrap">Month</TableHead>
-                  <TableHead className="font-semibold whitespace-nowrap">Last Updated</TableHead>
-                  <TableHead className="font-semibold whitespace-nowrap text-right">Total Records</TableHead>
-                  <TableHead className="font-semibold whitespace-nowrap text-right">Status Changes</TableHead>
-                  <TableHead className="font-semibold whitespace-nowrap text-right">New Applications</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <table className="professional-table">
+              <thead>
+                <tr>
+                  <th>Month</th>
+                  <th>Last Updated</th>
+                  <th className="text-right">Total Records</th>
+                  <th className="text-right">Status Changes</th>
+                  <th className="text-right">New Applications</th>
+                </tr>
+              </thead>
+              <tbody>
                 {freshnessRows.map((row) => (
-                  <TableRow key={row.month} className="hover:bg-muted/30">
-                    <TableCell className="font-medium">{row.month}</TableCell>
-                    <TableCell>{row.lastUpdated}</TableCell>
-                    <TableCell className="text-right tabular-nums">{row.totalRecords}</TableCell>
-                    <TableCell className="text-right tabular-nums">{row.statusChanges}</TableCell>
-                    <TableCell className="text-right tabular-nums">{row.newApplications}</TableCell>
-                  </TableRow>
+                  <tr key={row.month}>
+                    <td className="font-medium">{row.month}</td>
+                    <td>{row.lastUpdated}</td>
+                    <td className="text-right tabular-nums">{row.totalRecords}</td>
+                    <td className="text-right tabular-nums">{row.statusChanges}</td>
+                    <td className="text-right tabular-nums">{row.newApplications}</td>
+                  </tr>
                 ))}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           </div>
         </CardContent>
       </Card>
@@ -91,7 +83,7 @@ export function DataFreshnessTab({ freshnessRows, uploadSummary }: DataFreshness
       {/* Data Rules Explanation */}
       <Card>
         <CardHeader className="pb-4">
-          <CardTitle className="text-lg font-semibold">Data Handling Rules</CardTitle>
+          <CardTitle className="text-base font-semibold">Data Handling Rules</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4 text-sm">

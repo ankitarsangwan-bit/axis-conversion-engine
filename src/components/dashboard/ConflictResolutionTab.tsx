@@ -1,11 +1,3 @@
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ConflictRecord } from '@/types/axis';
 
@@ -36,7 +28,7 @@ export function ConflictResolutionTab({ conflicts }: ConflictResolutionTabProps)
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Total Conflicts Detected</CardDescription>
-            <CardTitle className={`text-xl tabular-nums ${conflicts.length > 0 ? 'text-warning' : 'text-success'}`}>
+            <CardTitle className={`text-lg tabular-nums ${conflicts.length > 0 ? 'text-warning' : 'text-success'}`}>
               {conflicts.length}
             </CardTitle>
           </CardHeader>
@@ -44,13 +36,13 @@ export function ConflictResolutionTab({ conflicts }: ConflictResolutionTabProps)
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Auto-Resolved</CardDescription>
-            <CardTitle className="text-xl tabular-nums text-success">{conflicts.length}</CardTitle>
+            <CardTitle className="text-lg tabular-nums text-success">{conflicts.length}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Manual Review Required</CardDescription>
-            <CardTitle className="text-xl tabular-nums">0</CardTitle>
+            <CardTitle className="text-lg tabular-nums">0</CardTitle>
           </CardHeader>
         </Card>
       </div>
@@ -59,45 +51,45 @@ export function ConflictResolutionTab({ conflicts }: ConflictResolutionTabProps)
       {conflicts.length > 0 ? (
         <Card>
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg font-semibold">Conflict Records</CardTitle>
+            <CardTitle className="text-base font-semibold">Conflict Records</CardTitle>
             <CardDescription>
               Applications with conflicting raw signals, resolved using defined business rules.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-muted/50 hover:bg-muted/50">
-                    <TableHead className="font-semibold whitespace-nowrap">Application ID</TableHead>
-                    <TableHead className="font-semibold whitespace-nowrap">Conflict Type</TableHead>
-                    <TableHead className="font-semibold whitespace-nowrap">Login Status</TableHead>
-                    <TableHead className="font-semibold whitespace-nowrap">Final Status</TableHead>
-                    <TableHead className="font-semibold whitespace-nowrap">Blaze Output</TableHead>
-                    <TableHead className="font-semibold whitespace-nowrap">Resolved KYC</TableHead>
-                    <TableHead className="font-semibold whitespace-nowrap">Resolved Quality</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
+              <table className="professional-table">
+                <thead>
+                  <tr>
+                    <th>Application ID</th>
+                    <th>Conflict Type</th>
+                    <th>Login Status</th>
+                    <th>Final Status</th>
+                    <th>Blaze Output</th>
+                    <th>Resolved KYC</th>
+                    <th>Resolved Quality</th>
+                  </tr>
+                </thead>
+                <tbody>
                   {conflicts.map((conflict) => (
-                    <TableRow key={conflict.application_id} className="hover:bg-muted/30">
-                      <TableCell className="font-medium">{conflict.application_id}</TableCell>
-                      <TableCell>
+                    <tr key={conflict.application_id}>
+                      <td className="font-medium">{conflict.application_id}</td>
+                      <td>
                         <span className="px-2 py-1 rounded text-xs font-medium bg-warning/10 text-warning">
                           {getConflictTypeLabel(conflict.conflictType)}
                         </span>
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">
+                      </td>
+                      <td className="font-mono text-sm">
                         {conflict.rawSignals.loginStatus || '—'}
-                      </TableCell>
-                      <TableCell className="font-mono text-sm">{conflict.rawSignals.finalStatus}</TableCell>
-                      <TableCell className="font-mono text-sm">{conflict.rawSignals.blazeOutput}</TableCell>
-                      <TableCell>
+                      </td>
+                      <td className="font-mono text-sm">{conflict.rawSignals.finalStatus}</td>
+                      <td className="font-mono text-sm">{conflict.rawSignals.blazeOutput}</td>
+                      <td>
                         <span className={`font-medium ${conflict.resolvedKycStatus === 'KYC Done' ? 'text-success' : 'text-warning'}`}>
                           {conflict.resolvedKycStatus}
                         </span>
-                      </TableCell>
-                      <TableCell>
+                      </td>
+                      <td>
                         <span className={`font-medium ${
                           conflict.resolvedQuality === 'Good' ? 'text-success' : 
                           conflict.resolvedQuality === 'Average' ? 'text-warning' : 
@@ -105,11 +97,11 @@ export function ConflictResolutionTab({ conflicts }: ConflictResolutionTabProps)
                         }`}>
                           {conflict.resolvedQuality}
                         </span>
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                    </tr>
                   ))}
-                </TableBody>
-              </Table>
+                </tbody>
+              </table>
             </div>
           </CardContent>
         </Card>
@@ -125,7 +117,7 @@ export function ConflictResolutionTab({ conflicts }: ConflictResolutionTabProps)
       {conflicts.length > 0 && (
         <Card>
           <CardHeader className="pb-4">
-            <CardTitle className="text-lg font-semibold">Resolution Details</CardTitle>
+            <CardTitle className="text-base font-semibold">Resolution Details</CardTitle>
             <CardDescription>
               How each conflict was resolved using business rules.
             </CardDescription>
@@ -157,7 +149,7 @@ export function ConflictResolutionTab({ conflicts }: ConflictResolutionTabProps)
       {/* Business Rules Reference */}
       <Card>
         <CardHeader className="pb-4">
-          <CardTitle className="text-lg font-semibold">Conflict Resolution Rules</CardTitle>
+          <CardTitle className="text-base font-semibold">Conflict Resolution Rules</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4 text-sm">

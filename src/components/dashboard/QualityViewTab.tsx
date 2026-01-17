@@ -1,11 +1,3 @@
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { QualitySummaryRow } from '@/types/axis';
 
@@ -59,75 +51,75 @@ export function QualityViewTab({ qualityRows }: QualityViewTabProps) {
     <div className="space-y-6">
       <Card>
         <CardHeader className="pb-4">
-          <CardTitle className="text-lg font-semibold">Quality Breakdown</CardTitle>
+          <CardTitle className="text-base font-semibold">Quality Breakdown</CardTitle>
           <CardDescription>
             Conversion metrics split by lead quality. Good and Average are eligible for conversion; Rejected is excluded from denominator.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-muted/50 hover:bg-muted/50">
-                  <TableHead className="font-semibold whitespace-nowrap">Quality</TableHead>
-                  <TableHead className="font-semibold whitespace-nowrap text-right">Total Applications</TableHead>
-                  <TableHead className="font-semibold whitespace-nowrap text-right">Eligible for KYC</TableHead>
-                  <TableHead className="font-semibold whitespace-nowrap text-right">KYC Pending</TableHead>
-                  <TableHead className="font-semibold whitespace-nowrap text-right">KYC Done</TableHead>
-                  <TableHead className="font-semibold whitespace-nowrap text-right">KYC Conversion %</TableHead>
-                  <TableHead className="font-semibold whitespace-nowrap text-right">Cards Approved</TableHead>
-                  <TableHead className="font-semibold whitespace-nowrap text-right">Approval %</TableHead>
-                  <TableHead className="font-semibold whitespace-nowrap text-right">Rejected (Post-KYC)</TableHead>
-                  <TableHead className="font-semibold whitespace-nowrap text-right">Rejection %</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+            <table className="professional-table">
+              <thead>
+                <tr>
+                  <th>Quality</th>
+                  <th className="text-right">Total Applications</th>
+                  <th className="text-right">Eligible for KYC</th>
+                  <th className="text-right">KYC Pending</th>
+                  <th className="text-right">KYC Done</th>
+                  <th className="text-right">KYC Conversion %</th>
+                  <th className="text-right">Cards Approved</th>
+                  <th className="text-right">Approval %</th>
+                  <th className="text-right">Rejected (Post-KYC)</th>
+                  <th className="text-right">Rejection %</th>
+                </tr>
+              </thead>
+              <tbody>
                 {eligibleRows.map((row) => (
-                  <TableRow key={row.quality} className="hover:bg-muted/30">
-                    <TableCell className={getQualityStyle(row.quality)}>{row.quality}</TableCell>
-                    <TableCell className="text-right tabular-nums">{row.totalApplications}</TableCell>
-                    <TableCell className="text-right tabular-nums">{row.eligibleForKyc}</TableCell>
-                    <TableCell className="text-right tabular-nums text-warning">{row.kycPending}</TableCell>
-                    <TableCell className="text-right tabular-nums text-success">{row.kycDone}</TableCell>
-                    <TableCell className="text-right tabular-nums font-semibold">{formatPercent(row.kycConversionPercent)}</TableCell>
-                    <TableCell className="text-right tabular-nums text-success">{row.cardsApproved}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatPercent(row.approvalPercent)}</TableCell>
-                    <TableCell className="text-right tabular-nums text-destructive">{row.rejectedPostKyc}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatPercent(row.rejectionPercent)}</TableCell>
-                  </TableRow>
+                  <tr key={row.quality}>
+                    <td className={getQualityStyle(row.quality)}>{row.quality}</td>
+                    <td className="text-right tabular-nums">{row.totalApplications}</td>
+                    <td className="text-right tabular-nums">{row.eligibleForKyc}</td>
+                    <td className="text-right tabular-nums text-warning">{row.kycPending}</td>
+                    <td className="text-right tabular-nums text-success">{row.kycDone}</td>
+                    <td className="text-right tabular-nums font-semibold">{formatPercent(row.kycConversionPercent)}</td>
+                    <td className="text-right tabular-nums text-success">{row.cardsApproved}</td>
+                    <td className="text-right tabular-nums">{formatPercent(row.approvalPercent)}</td>
+                    <td className="text-right tabular-nums text-destructive">{row.rejectedPostKyc}</td>
+                    <td className="text-right tabular-nums">{formatPercent(row.rejectionPercent)}</td>
+                  </tr>
                 ))}
                 
                 {/* Eligible Totals Row */}
-                <TableRow className="bg-muted/70 font-semibold hover:bg-muted/70 border-t-2">
-                  <TableCell>Eligible Total</TableCell>
-                  <TableCell className="text-right tabular-nums">{eligibleTotals.totalApplications}</TableCell>
-                  <TableCell className="text-right tabular-nums">{eligibleTotals.eligibleForKyc}</TableCell>
-                  <TableCell className="text-right tabular-nums text-warning">{eligibleTotals.kycPending}</TableCell>
-                  <TableCell className="text-right tabular-nums text-success">{eligibleTotals.kycDone}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatPercent(eligibleConversion)}</TableCell>
-                  <TableCell className="text-right tabular-nums text-success">{eligibleTotals.cardsApproved}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatPercent(eligibleApproval)}</TableCell>
-                  <TableCell className="text-right tabular-nums text-destructive">{eligibleTotals.rejectedPostKyc}</TableCell>
-                  <TableCell className="text-right tabular-nums">{formatPercent(eligibleRejection)}</TableCell>
-                </TableRow>
+                <tr className="total-row">
+                  <td>Eligible Total</td>
+                  <td className="text-right tabular-nums">{eligibleTotals.totalApplications}</td>
+                  <td className="text-right tabular-nums">{eligibleTotals.eligibleForKyc}</td>
+                  <td className="text-right tabular-nums text-warning">{eligibleTotals.kycPending}</td>
+                  <td className="text-right tabular-nums text-success">{eligibleTotals.kycDone}</td>
+                  <td className="text-right tabular-nums">{formatPercent(eligibleConversion)}</td>
+                  <td className="text-right tabular-nums text-success">{eligibleTotals.cardsApproved}</td>
+                  <td className="text-right tabular-nums">{formatPercent(eligibleApproval)}</td>
+                  <td className="text-right tabular-nums text-destructive">{eligibleTotals.rejectedPostKyc}</td>
+                  <td className="text-right tabular-nums">{formatPercent(eligibleRejection)}</td>
+                </tr>
 
                 {/* Rejected Row - Separated */}
                 {rejectedRow && (
-                  <TableRow className="bg-destructive/5 hover:bg-destructive/10 border-t">
-                    <TableCell className={getQualityStyle('Rejected')}>{rejectedRow.quality} (Excluded)</TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">{rejectedRow.totalApplications}</TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">—</TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">—</TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">—</TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">N/A</TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">—</TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">N/A</TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">—</TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">N/A</TableCell>
-                  </TableRow>
+                  <tr className="bg-destructive/5">
+                    <td className={getQualityStyle('Rejected')}>{rejectedRow.quality} (Excluded)</td>
+                    <td className="text-right tabular-nums text-muted-foreground">{rejectedRow.totalApplications}</td>
+                    <td className="text-right tabular-nums text-muted-foreground">—</td>
+                    <td className="text-right tabular-nums text-muted-foreground">—</td>
+                    <td className="text-right tabular-nums text-muted-foreground">—</td>
+                    <td className="text-right tabular-nums text-muted-foreground">N/A</td>
+                    <td className="text-right tabular-nums text-muted-foreground">—</td>
+                    <td className="text-right tabular-nums text-muted-foreground">N/A</td>
+                    <td className="text-right tabular-nums text-muted-foreground">—</td>
+                    <td className="text-right tabular-nums text-muted-foreground">N/A</td>
+                  </tr>
                 )}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           </div>
         </CardContent>
       </Card>
