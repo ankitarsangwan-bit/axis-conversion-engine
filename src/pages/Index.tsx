@@ -1,36 +1,64 @@
-import { FileText } from 'lucide-react';
-import { AxisConversionDashboard } from '@/components/AxisConversionDashboard';
-import { ConversionLogicPanel } from '@/components/ConversionLogicPanel';
-import { getAxisSummaryByMonth, getAxisTotals } from '@/data/sampleAxisData';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { FullViewTab } from '@/components/dashboard/FullViewTab';
+import { QualityViewTab } from '@/components/dashboard/QualityViewTab';
+import { DataFreshnessTab } from '@/components/dashboard/DataFreshnessTab';
+import { ConflictResolutionTab } from '@/components/dashboard/ConflictResolutionTab';
+import { 
+  getAxisSummaryByMonth, 
+  getAxisTotals, 
+  getQualitySummary,
+  getDataFreshness,
+  getConflictRecords,
+  getUploadSummary
+} from '@/data/sampleAxisData';
 
-const Index = () => {
+function Index() {
   const summaryRows = getAxisSummaryByMonth();
   const totals = getAxisTotals();
+  const qualityRows = getQualitySummary();
+  const freshnessRows = getDataFreshness();
+  const conflicts = getConflictRecords();
+  const uploadSummary = getUploadSummary();
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
-        <div className="container py-5">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">
-              <FileText className="h-4 w-4 text-primary-foreground" />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold">Axis Card Conversion Dashboard</h1>
-              <p className="text-sm text-muted-foreground">
-                Lead-level, status-driven reporting
-              </p>
-            </div>
-          </div>
-        </div>
-      </header>
+      <div className="container mx-auto px-4 py-8">
+        {/* Header */}
+        <header className="mb-8">
+          <h1 className="text-2xl font-bold text-foreground">Axis Bank Card Conversion</h1>
+          <p className="text-muted-foreground mt-1">
+            KYC-driven conversion tracking with quality-level analysis
+          </p>
+        </header>
 
-      <main className="container py-6 space-y-6">
-        <AxisConversionDashboard summaryRows={summaryRows} totals={totals} />
-        <ConversionLogicPanel />
-      </main>
+        {/* Tabbed Dashboard */}
+        <Tabs defaultValue="full-view" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
+            <TabsTrigger value="full-view">Full View</TabsTrigger>
+            <TabsTrigger value="quality-view">Quality Analysis</TabsTrigger>
+            <TabsTrigger value="data-freshness">Data Freshness</TabsTrigger>
+            <TabsTrigger value="conflicts">Conflict Resolution</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="full-view">
+            <FullViewTab summaryRows={summaryRows} totals={totals} />
+          </TabsContent>
+
+          <TabsContent value="quality-view">
+            <QualityViewTab qualityRows={qualityRows} />
+          </TabsContent>
+
+          <TabsContent value="data-freshness">
+            <DataFreshnessTab freshnessRows={freshnessRows} uploadSummary={uploadSummary} />
+          </TabsContent>
+
+          <TabsContent value="conflicts">
+            <ConflictResolutionTab conflicts={conflicts} />
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
-};
+}
 
 export default Index;

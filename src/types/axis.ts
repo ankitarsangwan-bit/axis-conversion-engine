@@ -30,6 +30,50 @@ export interface AxisSummaryRow {
   rejectionPercent: number;
 }
 
+// Quality-level summary for diagnostic view
+export interface QualitySummaryRow {
+  quality: LeadQuality;
+  totalApplications: number;
+  eligibleForKyc: number;
+  kycPending: number;
+  kycDone: number;
+  kycConversionPercent: number;
+  cardsApproved: number;
+  approvalPercent: number;
+  rejectedPostKyc: number;
+  rejectionPercent: number;
+}
+
+// Data freshness tracking
+export interface DataFreshnessRow {
+  month: string;
+  lastUpdated: string;
+  totalRecords: number;
+  statusChanges: number;
+  newApplications: number;
+}
+
+// Conflict resolution types
+export type ConflictType = 
+  | 'LOGIN_IPA_CONFLICT'      // Login present but status is IPA
+  | 'POST_KYC_NO_LOGIN'       // Post-KYC outcome without login
+  | 'REJECT_WITH_LOGIN'       // Rejected quality but has login
+  | 'MULTIPLE_STATUS_SIGNALS'; // Contradictory signals
+
+export interface ConflictRecord {
+  application_id: string;
+  conflictType: ConflictType;
+  conflictDescription: string;
+  rawSignals: {
+    loginStatus: string | null;
+    finalStatus: string;
+    blazeOutput: string;
+  };
+  resolution: string;
+  resolvedKycStatus: KycStatus;
+  resolvedQuality: LeadQuality;
+}
+
 // Lead Quality derivation from BLAZE_OUTPUT
 export function deriveLeadQuality(blazeOutput: string): LeadQuality {
   const normalized = blazeOutput?.toUpperCase()?.trim() || '';
@@ -90,4 +134,68 @@ export function isRejectedPostKyc(finalStatus: string, kycCompleted: boolean): b
 export function getMonthFromDate(dateStr: string): string {
   const date = new Date(dateStr);
   return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
+}
+
+// Conflict detection and resolution
+export function detectConflict(
+  loginStatus: string | null,
+  finalStatus: string,
+  blazeOutput: string
+): ConflictType | null {
+  const hasLogin = loginStatus !== null && loginStatus !== '' && loginStatus.toLowerCase().includes('login');
+  const normalizedFinal = finalStatus?.toUpperCase()?.trim() || '';
+  const quality = deriveLeadQuality(blazeOutput);
+  
+  const isIPA = normalizedFinal === 'IPA';
+  const isPostKycOutcome = POST_KYC_OUTCOMES.some(o => normalizedFinal.includes(o));
+  
+  // Login present but status shows IPA (pre-KYC stage)
+  if (hasLogin && isIPA) {
+    return 'LOGIN_IPA_CONFLICT';
+  }
+  
+  // Post-KYC outcome without login recorded
+  if (isPostKycOutcome && !hasLogin) {
+    return 'POST_KYC_NO_LOGIN';
+  }
+  
+  // Rejected quality lead somehow has login
+  if (quality === 'Rejected' && hasLogin) {
+    return 'REJECT_WITH_LOGIN';
+  }
+  
+  return null;
+}
+
+export function resolveConflict(conflictType: ConflictType): { 
+  resolution: string; 
+  kycCompleted: boolean;
+} {
+  switch (conflictType) {
+    case 'LOGIN_IPA_CONFLICT':
+      return {
+        resolution: 'Login presence takes precedence. KYC marked as Done per rule: Login present = KYC Completed.',
+        kycCompleted: true,
+      };
+    case 'POST_KYC_NO_LOGIN':
+      return {
+        resolution: 'Post-KYC outcome confirms KYC completion. Login field may have data quality issue.',
+        kycCompleted: true,
+      };
+    case 'REJECT_WITH_LOGIN':
+      return {
+        resolution: 'Lead quality remains Rejected (frozen at derivation). KYC is Done but excluded from conversion denominator.',
+        kycCompleted: true,
+      };
+    case 'MULTIPLE_STATUS_SIGNALS':
+      return {
+        resolution: 'Latest status signal used per rolling logic. Final status takes precedence.',
+        kycCompleted: false,
+      };
+    default:
+      return {
+        resolution: 'No conflict detected.',
+        kycCompleted: false,
+      };
+  }
 }
