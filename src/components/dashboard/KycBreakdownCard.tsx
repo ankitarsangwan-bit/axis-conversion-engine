@@ -51,18 +51,13 @@ export function KycBreakdownCard() {
 
         const VALID_LOGIN = ['LOGIN', 'LOGIN 26'];
         const VKYC_DONE = ['APPROVED', 'REJECTED'];
-        const AUTO_DECLINE_REASONS = ['IPA NON RESOLVED', 'TIME EXPIRED', 'AUTO DECLINE', 'AUTO-DECLINE'];
 
         allRecords.forEach(r => {
           const loginStatus = (r.login_status || '').toUpperCase().trim();
           const vkycStatus = (r.vkyc_status || '').toUpperCase().trim();
           const finalStatus = (r.final_status || '').toUpperCase().trim();
           const coreNonCore = (r.core_non_core || '').toUpperCase().trim();
-          const declineReason = (r.rejection_reason || '').toUpperCase().trim();
           const blazeOutput = (r.blaze_output || '').toUpperCase().trim();
-
-          // Check if this is an auto-decline (these remain KYC Pending)
-          const isAutoDecline = AUTO_DECLINE_REASONS.some(reason => declineReason.includes(reason));
 
           // Rule 0: Blaze rejected = Not Eligible for KYC (exclude from Done/Pending)
           if (blazeOutput === 'REJECT' || blazeOutput === 'REJECTED') {
@@ -80,13 +75,9 @@ export function KycBreakdownCard() {
           else if (coreNonCore === 'NON-CORE') {
             byNonCore++;
           }
-          // Rule 4: Final status moved beyond IPA BUT exclude auto-declines
+          // Rule 4: Final status moved beyond IPA = KYC Done
           else if (finalStatus !== '' && finalStatus !== 'IPA') {
-            if (isAutoDecline) {
-              kycPending++; // Auto-decline = KYC not actually done
-            } else {
-              byFinalStatus++; // Genuine decline/approval after IPA = KYC Done
-            }
+            byFinalStatus++;
           }
           // Everything else = KYC Pending
           else {
