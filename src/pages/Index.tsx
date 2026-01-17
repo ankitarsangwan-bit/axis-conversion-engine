@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { DateRange } from 'react-day-picker';
+import { subMonths } from 'date-fns';
 import { FullViewTab } from '@/components/dashboard/FullViewTab';
 import { QualityViewTab } from '@/components/dashboard/QualityViewTab';
 import { DataFreshnessTab } from '@/components/dashboard/DataFreshnessTab';
@@ -7,6 +9,7 @@ import { MISUploadTab } from '@/components/dashboard/MISUploadTab';
 import { StpkVkycTab } from '@/components/dashboard/StpkVkycTab';
 import { AppSidebar } from '@/components/AppSidebar';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { DateRangeFilter } from '@/components/DateRangeFilter';
 import { 
   getAxisSummaryByMonth, 
   getAxisTotals, 
@@ -23,6 +26,10 @@ import {
 function Index() {
   const [activeTab, setActiveTab] = useState('full-view');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: subMonths(new Date(), 3),
+    to: new Date(),
+  });
 
   const summaryRows = getAxisSummaryByMonth();
   const totals = getAxisTotals();
@@ -93,6 +100,7 @@ function Index() {
             </span>
           </div>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
             <span className="px-2 py-0.5 bg-success/20 text-success rounded text-[10px] font-medium">LIVE</span>
             <span>Axis Bank</span>
             <ThemeToggle />
