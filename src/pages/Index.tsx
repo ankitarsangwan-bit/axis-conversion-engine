@@ -1,6 +1,8 @@
-import { useState, useMemo, useEffect, Suspense, lazy } from 'react';
+import { useState, useMemo, useEffect, Suspense, lazy, useCallback } from 'react';
 import { DateRange } from 'react-day-picker';
 import { subMonths } from 'date-fns';
+import { RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { AppSidebar } from '@/components/AppSidebar';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { DateRangeFilter } from '@/components/DateRangeFilter';
@@ -39,6 +41,8 @@ function Index() {
     to: new Date(),
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Simulate initial data load
   useEffect(() => {
@@ -46,17 +50,27 @@ function Index() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Memoize expensive data calculations
-  const summaryRows = useMemo(() => getAxisSummaryByMonth(), []);
-  const totals = useMemo(() => getAxisTotals(), []);
-  const qualityRows = useMemo(() => getQualitySummary(), []);
-  const freshnessRows = useMemo(() => getDataFreshness(), []);
-  const conflicts = useMemo(() => getConflictRecords(), []);
-  const uploadSummary = useMemo(() => getUploadSummary(), []);
-  const misUploadHistory = useMemo(() => getMISUploadHistory(), []);
-  const currentMISUpload = useMemo(() => getCurrentMISUpload(), []);
-  const vkycFunnelMetrics = useMemo(() => getVkycFunnelMetrics(), []);
-  const vkycFunnelByMonth = useMemo(() => getVkycFunnelByMonth(), []);
+  // Refresh handler
+  const handleRefresh = useCallback(() => {
+    setIsRefreshing(true);
+    // Simulate data refresh
+    setTimeout(() => {
+      setRefreshKey(prev => prev + 1);
+      setIsRefreshing(false);
+    }, 800);
+  }, []);
+
+  // Memoize expensive data calculations - refresh when refreshKey changes
+  const summaryRows = useMemo(() => getAxisSummaryByMonth(), [refreshKey]);
+  const totals = useMemo(() => getAxisTotals(), [refreshKey]);
+  const qualityRows = useMemo(() => getQualitySummary(), [refreshKey]);
+  const freshnessRows = useMemo(() => getDataFreshness(), [refreshKey]);
+  const conflicts = useMemo(() => getConflictRecords(), [refreshKey]);
+  const uploadSummary = useMemo(() => getUploadSummary(), [refreshKey]);
+  const misUploadHistory = useMemo(() => getMISUploadHistory(), [refreshKey]);
+  const currentMISUpload = useMemo(() => getCurrentMISUpload(), [refreshKey]);
+  const vkycFunnelMetrics = useMemo(() => getVkycFunnelMetrics(), [refreshKey]);
+  const vkycFunnelByMonth = useMemo(() => getVkycFunnelByMonth(), [refreshKey]);
 
   const getSkeleton = () => {
     switch (activeTab) {
@@ -139,6 +153,16 @@ function Index() {
             </span>
           </div>
           <div className="flex items-center gap-3 text-xs text-muted-foreground">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="h-7 px-2 gap-1.5"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              <span className="text-xs">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+            </Button>
             <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
             <span className="px-2 py-0.5 bg-success/20 text-success rounded text-[10px] font-medium">LIVE</span>
             <span>Axis Bank</span>
