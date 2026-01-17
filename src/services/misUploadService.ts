@@ -7,7 +7,8 @@ import {
   isCardApproved,
   getMonthFromDate,
   normalizeBlazeOutput,
-  normalizeCoreNonCore
+  normalizeCoreNonCore,
+  normalizeToISODate
 } from '@/types/axis';
 
 export async function saveMISUpload(
@@ -89,7 +90,7 @@ export async function saveMISUpload(
           const vkycStatus = String(r.newValues?.vkyc_status || '');
           const coreNonCore = normalizeCoreNonCore(rawCoreNonCore);
           const lastUpdatedDate = r.newValues?.last_updated_date 
-            ? String(r.newValues.last_updated_date) 
+            ? normalizeToISODate(String(r.newValues.last_updated_date))
             : new Date().toISOString();
 
           // Get decline reason (Reason column)
@@ -173,7 +174,7 @@ export async function saveMISUpload(
       const vkycStatus = String(record.newValues?.vkyc_status || '');
       const coreNonCore = normalizeCoreNonCore(rawCoreNonCore);
       const lastUpdatedDate = record.newValues?.last_updated_date 
-        ? String(record.newValues.last_updated_date) 
+        ? normalizeToISODate(String(record.newValues.last_updated_date))
         : new Date().toISOString();
 
       // Get decline reason (Reason column)
