@@ -46,18 +46,47 @@ export async function saveMISUpload(
       return { success: false, uploadId: null, error: uploadError.message };
     }
 
+    // Track missing required fields as conflicts
+    const missingFieldConflicts: Array<{
+      application_id: string;
+      field_name: string;
+      old_value: string;
+      new_value: string;
+    }> = [];
+
     // Insert new records in batches to avoid hitting limits
     if (changePreview.newRecords.length > 0) {
       const batchSize = 500;
       for (let i = 0; i < changePreview.newRecords.length; i += batchSize) {
         const batch = changePreview.newRecords.slice(i, i + batchSize);
         const newRecordsToInsert = batch.map(r => {
-          // Normalize blaze_output - default empty to STPK
-          const blazeOutput = normalizeBlazeOutput(r.newValues?.blaze_output as string);
+          const rawBlazeOutput = r.newValues?.blaze_output as string;
+          const rawCoreNonCore = r.newValues?.core_non_core as string;
+          
+          // Track missing required fields
+          if (!rawBlazeOutput || rawBlazeOutput.trim() === '') {
+            missingFieldConflicts.push({
+              application_id: r.application_id,
+              field_name: 'blaze_output',
+              old_value: '',
+              new_value: 'STPK (defaulted - missing in MIS)',
+            });
+          }
+          if (!rawCoreNonCore || rawCoreNonCore.trim() === '') {
+            missingFieldConflicts.push({
+              application_id: r.application_id,
+              field_name: 'core_non_core',
+              old_value: '',
+              new_value: 'Core (defaulted - missing in MIS)',
+            });
+          }
+
+          // Normalize with defaults
+          const blazeOutput = normalizeBlazeOutput(rawBlazeOutput);
           const loginStatus = r.newValues?.login_status ? String(r.newValues.login_status) : null;
           const finalStatus = String(r.newValues?.final_status || '');
           const vkycStatus = String(r.newValues?.vkyc_status || '');
-          const coreNonCore = normalizeCoreNonCore(r.newValues?.core_non_core as string); // Default to 'Core' if empty
+          const coreNonCore = normalizeCoreNonCore(rawCoreNonCore);
           const lastUpdatedDate = r.newValues?.last_updated_date 
             ? String(r.newValues.last_updated_date) 
             : new Date().toISOString();
@@ -72,11 +101,11 @@ export async function saveMISUpload(
             upload_id: upload.id,
             application_id: r.application_id,
             month: month,
-            blaze_output: blazeOutput, // Will be 'STPK' if empty
+            blaze_output: blazeOutput,
             login_status: loginStatus,
             final_status: finalStatus,
             vkyc_status: vkycStatus,
-            core_non_core: coreNonCore, // Will be 'Core' if empty
+            core_non_core: coreNonCore,
             vkyc_eligible: r.newValues?.vkyc_eligible ? String(r.newValues.vkyc_eligible) : null,
             lead_quality: leadQuality,
             kyc_completed: kycCompleted,
@@ -102,12 +131,33 @@ export async function saveMISUpload(
 
     // Update existing records
     for (const record of changePreview.updatedRecords) {
-      // Normalize blaze_output - default empty to STPK
-      const blazeOutput = normalizeBlazeOutput(record.newValues?.blaze_output as string);
+      const rawBlazeOutput = record.newValues?.blaze_output as string;
+      const rawCoreNonCore = record.newValues?.core_non_core as string;
+      
+      // Track missing required fields
+      if (!rawBlazeOutput || rawBlazeOutput.trim() === '') {
+        missingFieldConflicts.push({
+          application_id: record.application_id,
+          field_name: 'blaze_output',
+          old_value: '',
+          new_value: 'STPK (defaulted - missing in MIS)',
+        });
+      }
+      if (!rawCoreNonCore || rawCoreNonCore.trim() === '') {
+        missingFieldConflicts.push({
+          application_id: record.application_id,
+          field_name: 'core_non_core',
+          old_value: '',
+          new_value: 'Core (defaulted - missing in MIS)',
+        });
+      }
+
+      // Normalize with defaults
+      const blazeOutput = normalizeBlazeOutput(rawBlazeOutput);
       const loginStatus = record.newValues?.login_status ? String(record.newValues.login_status) : null;
       const finalStatus = String(record.newValues?.final_status || '');
       const vkycStatus = String(record.newValues?.vkyc_status || '');
-      const coreNonCore = normalizeCoreNonCore(record.newValues?.core_non_core as string); // Default to 'Core' if empty
+      const coreNonCore = normalizeCoreNonCore(rawCoreNonCore);
       const lastUpdatedDate = record.newValues?.last_updated_date 
         ? String(record.newValues.last_updated_date) 
         : new Date().toISOString();
@@ -121,11 +171,11 @@ export async function saveMISUpload(
       const updateData: Record<string, any> = {
         upload_id: upload.id,
         last_updated_date: lastUpdatedDate,
-        blaze_output: blazeOutput, // Will be 'STPK' if empty
+        blaze_output: blazeOutput,
         login_status: loginStatus,
         final_status: finalStatus,
         vkyc_status: vkycStatus,
-        core_non_core: coreNonCore, // Will be 'Core' if empty
+        core_non_core: coreNonCore,
         lead_quality: leadQuality,
         kyc_completed: kycCompleted,
         month: month,
@@ -148,7 +198,7 @@ export async function saveMISUpload(
         console.error('Error updating record:', updateError);
       }
 
-      // Create conflict records for tracking
+      // Create conflict records for field changes
       if (record.changedFields && record.oldValues && record.newValues) {
         for (const field of record.changedFields) {
           await supabase.from('data_conflicts').insert({
@@ -162,6 +212,25 @@ export async function saveMISUpload(
           });
         }
       }
+    }
+
+    // Insert missing field conflicts (pending resolution)
+    if (missingFieldConflicts.length > 0) {
+      const batchSize = 500;
+      for (let i = 0; i < missingFieldConflicts.length; i += batchSize) {
+        const batch = missingFieldConflicts.slice(i, i + batchSize);
+        await supabase.from('data_conflicts').insert(
+          batch.map(c => ({
+            application_id: c.application_id,
+            field_name: c.field_name,
+            old_value: c.old_value,
+            new_value: c.new_value,
+            upload_id: upload.id,
+            resolution: 'pending', // Mark as pending - needs data from next MIS
+          }))
+        );
+      }
+      console.log(`Logged ${missingFieldConflicts.length} missing field conflicts`);
     }
 
     // Update data freshness
