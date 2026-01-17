@@ -7,6 +7,10 @@ import { useMISUpload } from '@/hooks/useMISUpload';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
+interface MISUploadWizardProps {
+  onViewDashboard?: () => void;
+}
+
 const STEPS = [
   { key: 'upload', label: 'Upload' },
   { key: 'mapping', label: 'Mapping' },
@@ -15,7 +19,7 @@ const STEPS = [
   { key: 'complete', label: 'Complete' },
 ] as const;
 
-export function MISUploadWizard() {
+export function MISUploadWizard({ onViewDashboard }: MISUploadWizardProps) {
   const {
     state,
     reset,
@@ -114,6 +118,7 @@ export function MISUploadWizard() {
           <UploadComplete
             changePreview={state.changePreview}
             onReset={reset}
+            onViewDashboard={onViewDashboard}
           />
         )}
       </div>
