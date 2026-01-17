@@ -30,7 +30,7 @@ export function KycBreakdownCard() {
         while (hasMore) {
           const { data: batch, error } = await supabase
             .from('mis_records')
-            .select('login_status, final_status, vkyc_status, core_non_core, kyc_completed')
+            .select('login_status, final_status, vkyc_status, core_non_core, rejection_reason, kyc_completed')
             .range(from, from + batchSize - 1);
 
           if (error || !batch) break;
@@ -46,15 +46,21 @@ export function KycBreakdownCard() {
         let byFinalStatus = 0;
         let byNonCore = 0;
         let kycPending = 0;
+        let byAutoDecline = 0; // Auto-declines that remain as pending
 
         const VALID_LOGIN = ['LOGIN', 'LOGIN 26'];
         const VKYC_DONE = ['APPROVED', 'REJECTED'];
+        const AUTO_DECLINE_REASONS = ['IPA NON RESOLVED', 'TIME EXPIRED', 'AUTO DECLINE', 'AUTO-DECLINE'];
 
         allRecords.forEach(r => {
           const loginStatus = (r.login_status || '').toUpperCase().trim();
           const vkycStatus = (r.vkyc_status || '').toUpperCase().trim();
           const finalStatus = (r.final_status || '').toUpperCase().trim();
           const coreNonCore = (r.core_non_core || '').toUpperCase().trim();
+          const declineReason = (r.rejection_reason || '').toUpperCase().trim();
+
+          // Check if auto-decline
+          const isAutoDecline = AUTO_DECLINE_REASONS.some(reason => declineReason.includes(reason));
 
           // Check rules in priority order (same as isKycCompleted)
           if (VALID_LOGIN.includes(loginStatus)) {
@@ -64,7 +70,14 @@ export function KycBreakdownCard() {
           } else if (coreNonCore === 'NON-CORE') {
             byNonCore++;
           } else if (finalStatus !== '' && finalStatus !== 'IPA') {
-            byFinalStatus++;
+            // Rule 4: Check for auto-decline exclusion
+            if (isAutoDecline) {
+              // Auto-decline without login/VKYC = KYC Pending
+              byAutoDecline++;
+              kycPending++;
+            } else {
+              byFinalStatus++;
+            }
           } else {
             kycPending++;
           }

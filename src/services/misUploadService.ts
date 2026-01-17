@@ -92,6 +92,9 @@ export async function saveMISUpload(
             ? String(r.newValues.last_updated_date) 
             : new Date().toISOString();
 
+          // Get decline reason (Reason column)
+          const declineReason = r.newValues?.rejection_reason ? String(r.newValues.rejection_reason) : null;
+
           // Apply business logic with new VKYC_Done and KYC_Done flags
           const leadQuality = deriveLeadQuality(blazeOutput);
           const vkycDone = isVkycDone(vkycStatus);
@@ -99,7 +102,8 @@ export async function saveMISUpload(
             loginStatus, 
             finalStatus, 
             vkycStatus, 
-            coreNonCore
+            coreNonCore,
+            declineReason
           );
           const cardApproved = isCardApproved(finalStatus);
           const month = getMonthFromDate(lastUpdatedDate);
@@ -172,6 +176,9 @@ export async function saveMISUpload(
         ? String(record.newValues.last_updated_date) 
         : new Date().toISOString();
 
+      // Get decline reason (Reason column)
+      const declineReason = record.newValues?.rejection_reason ? String(record.newValues.rejection_reason) : null;
+
       // Apply business logic with new VKYC_Done and KYC_Done flags
       const leadQuality = deriveLeadQuality(blazeOutput);
       const vkycDone = isVkycDone(vkycStatus);
@@ -179,7 +186,8 @@ export async function saveMISUpload(
         loginStatus, 
         finalStatus, 
         vkycStatus, 
-        coreNonCore
+        coreNonCore,
+        declineReason
       );
       const cardApproved = isCardApproved(finalStatus);
       const month = getMonthFromDate(lastUpdatedDate);

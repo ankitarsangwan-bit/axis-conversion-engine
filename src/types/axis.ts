@@ -169,8 +169,8 @@ const POST_KYC_REJECTIONS = ['REJECTED', 'DECLINED'];
 // Card approved outcomes
 const CARD_APPROVED_OUTCOMES = ['APPROVED', 'DISBURSED', 'CARD DISPATCHED', 'SANCTIONED'];
 
-// Note: Auto-decline handling removed as per business requirement
-// rejection_reason is NOT used for KYC determination
+// Auto-decline reasons that should NOT count as KYC Done
+const AUTO_DECLINE_REASONS = ['IPA NON RESOLVED', 'TIME EXPIRED', 'AUTO DECLINE', 'AUTO-DECLINE'];
 
 // Valid login statuses that indicate KYC completion
 const VALID_LOGIN_STATUSES = ['LOGIN', 'LOGIN 26'];
@@ -213,7 +213,14 @@ function hasValidLogin(loginStatus: string | null | undefined): boolean {
   return VALID_LOGIN_STATUSES.includes(normalized);
 }
 
-// isAutoDecline function removed - rejection_reason not used per business requirement
+/**
+ * Check if this is an auto-decline (should NOT count as KYC Done)
+ * decline_reason IN ('IPA Non Resolved','Time Expired','Auto Decline')
+ */
+function isAutoDecline(declineReason: string | null | undefined): boolean {
+  const normalized = declineReason?.toUpperCase()?.trim() || '';
+  return AUTO_DECLINE_REASONS.some(reason => normalized.includes(reason));
+}
 
 /**
  * KYC Done Flag - Final Logic (Overall)
@@ -222,20 +229,23 @@ function hasValidLogin(loginStatus: string | null | undefined): boolean {
  * - KYC attempt happened (digital or physical), OR
  * - KYC is not possible (non-core city)
  * 
- * SIMPLIFIED LOGIC (no rejection_reason):
  * KYC_Done = Y IF ANY ONE of the following is true:
  * 
  * Rule 1: Login achieved - login_status IN ('Login','Login 26')
  * Rule 2: VKYC attempt completed - vkyc_status IN ('Approved','Rejected')
  * Rule 3: Physical KYC completed - physical_pickup_completed = Y OR physical_login = Y
- * Rule 4: Final status progressed beyond IPA - final_status != 'IPA'
+ * Rule 4: Final status progressed beyond IPA (excluding auto-declines)
+ *         final_status != 'IPA' AND decline_reason NOT IN auto-decline list
  * Rule 5: Non-Core City (FORCED CLOSURE) - core_non_core = 'Non-Core'
+ * 
+ * CRITICAL: Auto-decline after 25 days without KYC attempt = KYC Pending
  */
 export function isKycCompleted(
   loginStatus: string | null | undefined,
   finalStatus: string | null | undefined,
   vkycStatus?: string | null | undefined,
   coreNonCore?: string | null | undefined,
+  declineReason?: string | null | undefined,
   physicalPickupCompleted?: boolean,
   physicalLogin?: boolean
 ): boolean {
@@ -263,8 +273,16 @@ export function isKycCompleted(
     return true;
   }
   
-  // Rule 4: Final status progressed beyond IPA
+  // Rule 4: Final status progressed beyond IPA (excluding auto-declines)
+  // CRITICAL EDGE CASE: Auto-decline after 25 days without KYC attempt = KYC Pending
   if (normalizedFinalStatus !== '' && normalizedFinalStatus !== 'IPA') {
+    // Check if this is an auto-decline without any KYC attempt
+    if (isAutoDecline(declineReason)) {
+      // Auto-decline without login/VKYC attempt = still KYC Pending
+      // We already checked login and VKYC above, so if we're here, no KYC attempt was made
+      return false;
+    }
+    // Not an auto-decline and status progressed beyond IPA
     return true;
   }
   
