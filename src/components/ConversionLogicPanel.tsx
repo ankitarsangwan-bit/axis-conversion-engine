@@ -21,19 +21,20 @@ export function ConversionLogicPanel() {
           </h4>
           <ul className="text-sm text-muted-foreground space-y-1 ml-6">
             <li>• LOGIN STATUS is present (Login / Login 26)</li>
-            <li>• OR FINAL STATUS ≠ IPA</li>
+            <li>• OR FINAL STATUS is a genuine post-KYC outcome (Approved, Disbursed, etc.)</li>
           </ul>
         </div>
         
         <div className="space-y-2">
           <h4 className="font-semibold text-sm flex items-center gap-2">
             <XCircle className="h-4 w-4 text-destructive" />
-            NOT Conversion:
+            NOT Conversion (Remains KYC Pending):
           </h4>
           <ul className="text-sm text-muted-foreground space-y-1 ml-6">
-            <li>• VKYC Rejected alone</li>
-            <li>• Bank auto-decline after 25 days</li>
-            <li>• IPA stage only</li>
+            <li>• Bank auto-decline after expiry (no login)</li>
+            <li>• IPA stage without login</li>
+            <li>• Declined/Pending Review without login</li>
+            <li>• Rejected quality leads (excluded from denominator)</li>
           </ul>
         </div>
 
