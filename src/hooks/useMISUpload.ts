@@ -114,16 +114,7 @@ export function useMISUpload() {
       }
     });
 
-    // Check for unmapped source columns
-    state.columnMappings
-      .filter(m => !m.isMapped)
-      .forEach(m => {
-        warnings.push({
-          type: 'unmapped_column',
-          message: `Column "${m.sourceColumn}" is not mapped and will be ignored`,
-          column: m.sourceColumn,
-        });
-      });
+    // Unmapped columns are silently ignored - no warnings needed
 
     // Get the mapping for application_id
     const appIdMapping = state.columnMappings.find(m => m.targetColumn === 'application_id');
