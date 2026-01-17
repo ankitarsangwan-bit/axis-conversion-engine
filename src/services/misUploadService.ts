@@ -1,5 +1,11 @@
 import { supabase } from '@/integrations/supabase/client';
 import { ChangePreview, PreviewRecord } from '@/types/misUpload';
+import { 
+  deriveLeadQuality, 
+  isKycCompleted, 
+  isCardApproved,
+  getMonthFromDate 
+} from '@/types/axis';
 
 export async function saveMISUpload(
   fileName: string,
@@ -38,44 +44,95 @@ export async function saveMISUpload(
       return { success: false, uploadId: null, error: uploadError.message };
     }
 
-    // Insert new records
+    // Insert new records in batches to avoid hitting limits
     if (changePreview.newRecords.length > 0) {
-      const newRecordsToInsert = changePreview.newRecords.map(r => ({
-        upload_id: upload.id,
-        application_id: r.application_id,
-        month: String(r.newValues?.month || new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'short' })),
-        state: r.newValues?.state ? String(r.newValues.state) : null,
-        product: r.newValues?.product ? String(r.newValues.product) : null,
-        applications: Number(r.newValues?.applications) || 1,
-        dedupe_pass: Number(r.newValues?.dedupe_pass) || 0,
-        bureau_pass: Number(r.newValues?.bureau_pass) || 0,
-        vkyc_pass: Number(r.newValues?.vkyc_pass) || 0,
-        disbursed: Number(r.newValues?.disbursed) || 0,
-        disbursement_amount: Number(r.newValues?.disbursement_amount) || 0,
-        rejection_reason: r.newValues?.rejection_reason ? String(r.newValues.rejection_reason) : null,
-      }));
+      const batchSize = 500;
+      for (let i = 0; i < changePreview.newRecords.length; i += batchSize) {
+        const batch = changePreview.newRecords.slice(i, i + batchSize);
+        const newRecordsToInsert = batch.map(r => {
+          const blazeOutput = String(r.newValues?.blaze_output || '');
+          const loginStatus = r.newValues?.login_status ? String(r.newValues.login_status) : null;
+          const finalStatus = String(r.newValues?.final_status || '');
+          const vkycStatus = String(r.newValues?.vkyc_status || '');
+          const coreNonCore = String(r.newValues?.core_non_core || '');
+          const lastUpdatedDate = r.newValues?.last_updated_date 
+            ? String(r.newValues.last_updated_date) 
+            : new Date().toISOString();
 
-      const { error: insertError } = await supabase
-        .from('mis_records')
-        .insert(newRecordsToInsert);
+          // Apply business logic
+          const leadQuality = deriveLeadQuality(blazeOutput);
+          const kycCompleted = isKycCompleted(loginStatus, finalStatus);
+          const cardApproved = isCardApproved(finalStatus);
+          const month = getMonthFromDate(lastUpdatedDate);
 
-      if (insertError) {
-        console.error('Error inserting new records:', insertError);
+          return {
+            upload_id: upload.id,
+            application_id: r.application_id,
+            month: month,
+            blaze_output: blazeOutput,
+            login_status: loginStatus,
+            final_status: finalStatus,
+            vkyc_status: vkycStatus,
+            core_non_core: coreNonCore,
+            vkyc_eligible: r.newValues?.vkyc_eligible ? String(r.newValues.vkyc_eligible) : null,
+            lead_quality: leadQuality,
+            kyc_completed: kycCompleted,
+            // Computed numeric fields
+            applications: 1,
+            dedupe_pass: leadQuality !== 'Rejected' ? 1 : 0,
+            bureau_pass: leadQuality === 'Good' ? 1 : 0,
+            vkyc_pass: kycCompleted ? 1 : 0,
+            disbursed: cardApproved ? 1 : 0,
+            last_updated_date: lastUpdatedDate,
+          };
+        });
+
+        const { error: insertError } = await supabase
+          .from('mis_records')
+          .insert(newRecordsToInsert);
+
+        if (insertError) {
+          console.error('Error inserting batch:', insertError);
+        }
       }
     }
 
     // Update existing records
     for (const record of changePreview.updatedRecords) {
+      const blazeOutput = String(record.newValues?.blaze_output || '');
+      const loginStatus = record.newValues?.login_status ? String(record.newValues.login_status) : null;
+      const finalStatus = String(record.newValues?.final_status || '');
+      const vkycStatus = String(record.newValues?.vkyc_status || '');
+      const coreNonCore = String(record.newValues?.core_non_core || '');
+      const lastUpdatedDate = record.newValues?.last_updated_date 
+        ? String(record.newValues.last_updated_date) 
+        : new Date().toISOString();
+
+      // Apply business logic
+      const leadQuality = deriveLeadQuality(blazeOutput);
+      const kycCompleted = isKycCompleted(loginStatus, finalStatus);
+      const cardApproved = isCardApproved(finalStatus);
+      const month = getMonthFromDate(lastUpdatedDate);
+
       const updateData: Record<string, any> = {
         upload_id: upload.id,
-        last_updated_date: new Date().toISOString(),
+        last_updated_date: lastUpdatedDate,
+        blaze_output: blazeOutput,
+        login_status: loginStatus,
+        final_status: finalStatus,
+        vkyc_status: vkycStatus,
+        core_non_core: coreNonCore,
+        lead_quality: leadQuality,
+        kyc_completed: kycCompleted,
+        month: month,
+        dedupe_pass: leadQuality !== 'Rejected' ? 1 : 0,
+        bureau_pass: leadQuality === 'Good' ? 1 : 0,
+        vkyc_pass: kycCompleted ? 1 : 0,
+        disbursed: cardApproved ? 1 : 0,
       };
 
-      // Apply changed fields from newValues
-      if (record.changedFields && record.newValues) {
-        record.changedFields.forEach(field => {
-          updateData[field] = record.newValues[field];
-        });
+      if (record.newValues?.vkyc_eligible) {
+        updateData.vkyc_eligible = String(record.newValues.vkyc_eligible);
       }
 
       const { error: updateError } = await supabase

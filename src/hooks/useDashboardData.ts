@@ -142,7 +142,10 @@ async function computeDashboardFromDB(): Promise<DashboardData> {
   const { data: records, count } = await supabase
     .from('mis_records')
     .select('*', { count: 'exact' })
-    .range(0, 100000); // Override default 1000 limit
+    .range(0, 100000);
+
+  console.log(`Fetched ${records?.length || 0} records from database (total count: ${count})`);
+
 
   const { data: uploads } = await supabase
     .from('mis_uploads')
@@ -160,15 +163,24 @@ async function computeDashboardFromDB(): Promise<DashboardData> {
     .select('*')
     .range(0, 100000);
 
-  // Process MIS records into dashboard format
+  // Process MIS records into dashboard format using stored computed fields
   const processedRecords = (records || []).map((r: any) => ({
     application_id: r.application_id,
-    month: r.month,
-    applications: r.applications || 0,
-    dedupe_pass: r.dedupe_pass || 0,
-    bureau_pass: r.bureau_pass || 0,
-    vkyc_pass: r.vkyc_pass || 0,
-    disbursed: r.disbursed || 0,
+    month: r.month || 'Unknown',
+    blaze_output: r.blaze_output || '',
+    login_status: r.login_status,
+    final_status: r.final_status || '',
+    vkyc_status: r.vkyc_status || '',
+    core_non_core: r.core_non_core || '',
+    lead_quality: r.lead_quality || deriveLeadQuality(r.blaze_output || ''),
+    kyc_completed: r.kyc_completed ?? isKycCompleted(r.login_status, r.final_status || ''),
+    card_approved: isCardApproved(r.final_status || ''),
+    // Use stored values or compute from raw fields
+    applications: r.applications || 1,
+    dedupe_pass: r.dedupe_pass ?? (r.lead_quality !== 'Rejected' ? 1 : 0),
+    bureau_pass: r.bureau_pass ?? (r.lead_quality === 'Good' ? 1 : 0),
+    vkyc_pass: r.vkyc_pass ?? (r.kyc_completed ? 1 : 0),
+    disbursed: r.disbursed ?? (isCardApproved(r.final_status || '') ? 1 : 0),
   }));
 
   // Group by month for summary
