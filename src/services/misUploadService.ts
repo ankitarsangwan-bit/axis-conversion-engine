@@ -92,9 +92,6 @@ export async function saveMISUpload(
             ? String(r.newValues.last_updated_date) 
             : new Date().toISOString();
 
-          // Get rejection reason if available
-          const rejectionReason = r.newValues?.rejection_reason ? String(r.newValues.rejection_reason) : null;
-
           // Apply business logic with new VKYC_Done and KYC_Done flags
           const leadQuality = deriveLeadQuality(blazeOutput);
           const vkycDone = isVkycDone(vkycStatus);
@@ -102,8 +99,7 @@ export async function saveMISUpload(
             loginStatus, 
             finalStatus, 
             vkycStatus, 
-            coreNonCore, 
-            rejectionReason
+            coreNonCore
           );
           const cardApproved = isCardApproved(finalStatus);
           const month = getMonthFromDate(lastUpdatedDate);
@@ -118,7 +114,7 @@ export async function saveMISUpload(
             vkyc_status: vkycStatus,
             core_non_core: coreNonCore,
             vkyc_eligible: r.newValues?.vkyc_eligible ? String(r.newValues.vkyc_eligible) : null,
-            rejection_reason: rejectionReason,
+            rejection_reason: r.newValues?.rejection_reason ? String(r.newValues.rejection_reason) : null,
             state: r.newValues?.state ? String(r.newValues.state) : null,
             product: r.newValues?.product ? String(r.newValues.product) : null,
             lead_quality: leadQuality,
@@ -176,9 +172,6 @@ export async function saveMISUpload(
         ? String(record.newValues.last_updated_date) 
         : new Date().toISOString();
 
-      // Get rejection reason if available
-      const rejectionReason = record.newValues?.rejection_reason ? String(record.newValues.rejection_reason) : null;
-
       // Apply business logic with new VKYC_Done and KYC_Done flags
       const leadQuality = deriveLeadQuality(blazeOutput);
       const vkycDone = isVkycDone(vkycStatus);
@@ -186,8 +179,7 @@ export async function saveMISUpload(
         loginStatus, 
         finalStatus, 
         vkycStatus, 
-        coreNonCore, 
-        rejectionReason
+        coreNonCore
       );
       const cardApproved = isCardApproved(finalStatus);
       const month = getMonthFromDate(lastUpdatedDate);
@@ -200,7 +192,7 @@ export async function saveMISUpload(
         final_status: finalStatus,
         vkyc_status: vkycStatus,
         core_non_core: coreNonCore,
-        rejection_reason: rejectionReason,
+        rejection_reason: record.newValues?.rejection_reason ? String(record.newValues.rejection_reason) : null,
         lead_quality: leadQuality,
         kyc_completed: kycCompleted,
         month: month,
