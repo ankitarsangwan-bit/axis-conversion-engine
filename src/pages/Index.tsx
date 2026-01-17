@@ -6,6 +6,7 @@ import { ConflictResolutionTab } from '@/components/dashboard/ConflictResolution
 import { MISUploadTab } from '@/components/dashboard/MISUploadTab';
 import { StpkVkycTab } from '@/components/dashboard/StpkVkycTab';
 import { AppSidebar } from '@/components/AppSidebar';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { 
   getAxisSummaryByMonth, 
   getAxisTotals, 
@@ -91,9 +92,10 @@ function Index() {
               })}
             </span>
           </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex items-center gap-3 text-xs text-muted-foreground">
             <span className="px-2 py-0.5 bg-success/20 text-success rounded text-[10px] font-medium">LIVE</span>
             <span>Axis Bank</span>
+            <ThemeToggle />
           </div>
         </header>
 
