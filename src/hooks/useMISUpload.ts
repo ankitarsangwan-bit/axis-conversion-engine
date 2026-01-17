@@ -15,6 +15,7 @@ import {
   RawMISRow,
 } from '@/types/misUpload';
 import { sampleAxisApplications } from '@/data/sampleAxisData';
+import { saveMISUpload } from '@/services/misUploadService';
 
 const initialState: UploadState = {
   step: 'upload',
@@ -289,18 +290,40 @@ export function useMISUpload() {
     }));
   }, [state.parsedFile, state.validationResult, state.columnMappings]);
 
-  const applyChanges = useCallback(() => {
+  const applyChanges = useCallback(async () => {
+    if (!state.parsedFile || !state.changePreview) return;
+    
     setState(prev => ({ ...prev, isProcessing: true }));
 
-    // Simulate applying changes (in a real app, this would update the data store)
-    setTimeout(() => {
+    try {
+      // Save to database
+      const result = await saveMISUpload(
+        state.parsedFile.fileName,
+        state.parsedFile.rows.length,
+        state.changePreview
+      );
+
+      if (result.success) {
+        console.log('Upload saved with ID:', result.uploadId);
+      } else {
+        console.error('Upload failed:', result.error);
+      }
+
       setState(prev => ({
         ...prev,
         step: 'complete',
         isProcessing: false,
       }));
-    }, 1000);
-  }, []);
+    } catch (error) {
+      console.error('Error applying changes:', error);
+      setState(prev => ({
+        ...prev,
+        step: 'complete',
+        isProcessing: false,
+        error: error instanceof Error ? error.message : 'Failed to save upload',
+      }));
+    }
+  }, [state.parsedFile, state.changePreview]);
 
   return {
     state,
