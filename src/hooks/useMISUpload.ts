@@ -190,7 +190,7 @@ export function useMISUpload() {
     // Fetch existing records from database with no row limit
     const { data: existingRecords } = await supabase
       .from('mis_records')
-      .select('application_id, month, state, product, applications, dedupe_pass, bureau_pass, vkyc_pass, disbursed')
+      .select('application_id, blaze_output, login_status, final_status, vkyc_status, core_non_core, vkyc_eligible, last_updated_date, month')
       .range(0, 100000);
 
     // Build a lookup of current data by application_id

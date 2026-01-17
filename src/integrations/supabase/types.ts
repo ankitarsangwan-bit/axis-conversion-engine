@@ -95,53 +95,77 @@ export type Database = {
         Row: {
           application_id: string
           applications: number | null
+          blaze_output: string | null
           bureau_pass: number | null
+          core_non_core: string | null
           created_at: string
           dedupe_pass: number | null
           disbursed: number | null
           disbursement_amount: number | null
+          final_status: string | null
           id: string
+          kyc_completed: boolean | null
           last_updated_date: string | null
+          lead_quality: string | null
+          login_status: string | null
           month: string
           product: string | null
           rejection_reason: string | null
           state: string | null
           upload_id: string | null
+          vkyc_eligible: string | null
           vkyc_pass: number | null
+          vkyc_status: string | null
         }
         Insert: {
           application_id: string
           applications?: number | null
+          blaze_output?: string | null
           bureau_pass?: number | null
+          core_non_core?: string | null
           created_at?: string
           dedupe_pass?: number | null
           disbursed?: number | null
           disbursement_amount?: number | null
+          final_status?: string | null
           id?: string
+          kyc_completed?: boolean | null
           last_updated_date?: string | null
+          lead_quality?: string | null
+          login_status?: string | null
           month: string
           product?: string | null
           rejection_reason?: string | null
           state?: string | null
           upload_id?: string | null
+          vkyc_eligible?: string | null
           vkyc_pass?: number | null
+          vkyc_status?: string | null
         }
         Update: {
           application_id?: string
           applications?: number | null
+          blaze_output?: string | null
           bureau_pass?: number | null
+          core_non_core?: string | null
           created_at?: string
           dedupe_pass?: number | null
           disbursed?: number | null
           disbursement_amount?: number | null
+          final_status?: string | null
           id?: string
+          kyc_completed?: boolean | null
           last_updated_date?: string | null
+          lead_quality?: string | null
+          login_status?: string | null
           month?: string
           product?: string | null
           rejection_reason?: string | null
           state?: string | null
           upload_id?: string | null
+          vkyc_eligible?: string | null
           vkyc_pass?: number | null
+          vkyc_status?: string | null
         }
         Relationships: [
           {
