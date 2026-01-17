@@ -46,40 +46,47 @@ export function KycBreakdownCard() {
         let byFinalStatus = 0;
         let byNonCore = 0;
         let kycPending = 0;
-        let byAutoDecline = 0; // Auto-declines that remain as pending
 
         const VALID_LOGIN = ['LOGIN', 'LOGIN 26'];
         const VKYC_DONE = ['APPROVED', 'REJECTED'];
-        const AUTO_DECLINE_REASONS = ['IPA NON RESOLVED', 'TIME EXPIRED', 'AUTO DECLINE', 'AUTO-DECLINE'];
+        const VKYC_PENDING = ['', 'DROPPED', 'PENDING'];
 
         allRecords.forEach(r => {
           const loginStatus = (r.login_status || '').toUpperCase().trim();
           const vkycStatus = (r.vkyc_status || '').toUpperCase().trim();
           const finalStatus = (r.final_status || '').toUpperCase().trim();
           const coreNonCore = (r.core_non_core || '').toUpperCase().trim();
-          const declineReason = (r.rejection_reason || '').toUpperCase().trim();
-
-          // Check if auto-decline
-          const isAutoDecline = AUTO_DECLINE_REASONS.some(reason => declineReason.includes(reason));
 
           // Check rules in priority order (same as isKycCompleted)
+          // Rule 1: Login done
           if (VALID_LOGIN.includes(loginStatus)) {
             byLogin++;
-          } else if (VKYC_DONE.includes(vkycStatus)) {
+          }
+          // Rule 2: VKYC completed (Approved/Rejected)
+          else if (VKYC_DONE.includes(vkycStatus)) {
             byVkyc++;
-          } else if (coreNonCore === 'NON-CORE') {
+          }
+          // Rule 3: Non-Core applications (always KYC Done)
+          else if (coreNonCore === 'NON-CORE') {
             byNonCore++;
-          } else if (finalStatus !== '' && finalStatus !== 'IPA') {
-            // Rule 4: Check for auto-decline exclusion
-            if (isAutoDecline) {
-              // Auto-decline without login/VKYC = KYC Pending
-              byAutoDecline++;
-              kycPending++;
-            } else {
-              byFinalStatus++;
-            }
-          } else {
+          }
+          // Rule 4: Final status moved beyond IPA (Card issued, Declined, etc.)
+          else if (finalStatus !== '' && finalStatus !== 'IPA') {
+            byFinalStatus++;
+          }
+          // KYC Pending: Only genuine pending cases per user definition
+          // login_status IS NULL AND vkyc_status IN (NULL, Dropped, Pending) AND final_status = IPA AND core_non_core = Core
+          else if (
+            loginStatus === '' &&
+            VKYC_PENDING.includes(vkycStatus) &&
+            (finalStatus === '' || finalStatus === 'IPA') &&
+            (coreNonCore === '' || coreNonCore === 'CORE')
+          ) {
             kycPending++;
+          }
+          // Everything else that doesn't match any rule - count as KYC Done via final status
+          else {
+            byFinalStatus++;
           }
         });
 
