@@ -151,6 +151,15 @@ export function normalizeBlazeOutput(blazeOutput: string | null | undefined): st
   return val === '' ? 'STPK' : val;
 }
 
+// Normalize core_non_core - default empty to Core
+export function normalizeCoreNonCore(coreNonCore: string | null | undefined): CoreNonCore {
+  const val = coreNonCore?.trim() || '';
+  if (val === '' || val.toLowerCase() === 'core') {
+    return 'Core';
+  }
+  return 'Non-Core';
+}
+
 // Genuine post-KYC outcomes (can ONLY happen after KYC completion)
 const POST_KYC_OUTCOMES = ['APPROVED', 'DISBURSED', 'LOGGED', 'CARD DISPATCHED', 'SANCTIONED'];
 
