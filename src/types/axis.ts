@@ -313,8 +313,45 @@ export function isRejectedPostKyc(finalStatus: string, kycCompleted: boolean): b
   return POST_KYC_REJECTIONS.some(outcome => normalized.includes(outcome));
 }
 
+/**
+ * Safely parse date strings that may contain non-standard timezone formats
+ * like "GMT+0530" which JavaScript doesn't recognize
+ */
+export function parseExcelDate(dateStr: string | null | undefined): Date {
+  if (!dateStr) {
+    return new Date();
+  }
+  
+  // Clean up the date string - remove problematic timezone formats
+  let cleaned = String(dateStr).trim();
+  
+  // Remove "GMT+XXXX" or "GMT-XXXX" patterns (non-standard format)
+  cleaned = cleaned.replace(/\s*GMT[+-]\d{4}\s*/gi, ' ');
+  
+  // Also handle "GMT+XX:XX" format
+  cleaned = cleaned.replace(/\s*GMT[+-]\d{2}:\d{2}\s*/gi, ' ');
+  
+  // Try to parse the cleaned date
+  const parsed = new Date(cleaned.trim());
+  
+  // If parsing failed, return current date
+  if (isNaN(parsed.getTime())) {
+    console.warn('Failed to parse date:', dateStr, '-> using current date');
+    return new Date();
+  }
+  
+  return parsed;
+}
+
+/**
+ * Convert date to ISO string, handling problematic timezone formats
+ */
+export function normalizeToISODate(dateStr: string | null | undefined): string {
+  return parseExcelDate(dateStr).toISOString();
+}
+
 export function getMonthFromDate(dateStr: string): string {
-  const date = new Date(dateStr);
+  const date = parseExcelDate(dateStr);
   return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
 }
 
