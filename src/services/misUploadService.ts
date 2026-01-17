@@ -118,6 +118,9 @@ export async function saveMISUpload(
             vkyc_status: vkycStatus,
             core_non_core: coreNonCore,
             vkyc_eligible: r.newValues?.vkyc_eligible ? String(r.newValues.vkyc_eligible) : null,
+            rejection_reason: rejectionReason,
+            state: r.newValues?.state ? String(r.newValues.state) : null,
+            product: r.newValues?.product ? String(r.newValues.product) : null,
             lead_quality: leadQuality,
             kyc_completed: kycCompleted,
             // Computed numeric fields
@@ -197,6 +200,7 @@ export async function saveMISUpload(
         final_status: finalStatus,
         vkyc_status: vkycStatus,
         core_non_core: coreNonCore,
+        rejection_reason: rejectionReason,
         lead_quality: leadQuality,
         kyc_completed: kycCompleted,
         month: month,
@@ -208,6 +212,12 @@ export async function saveMISUpload(
 
       if (record.newValues?.vkyc_eligible) {
         updateData.vkyc_eligible = String(record.newValues.vkyc_eligible);
+      }
+      if (record.newValues?.state) {
+        updateData.state = String(record.newValues.state);
+      }
+      if (record.newValues?.product) {
+        updateData.product = String(record.newValues.product);
       }
 
       const { error: updateError } = await supabase
