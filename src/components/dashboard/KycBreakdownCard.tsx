@@ -34,7 +34,7 @@ export function KycBreakdownCard() {
         while (hasMore) {
           const { data: batch, error } = await supabase
             .from('mis_records')
-            .select('login_status, final_status, vkyc_status, core_non_core, rejection_reason, kyc_completed')
+            .select('login_status, final_status, vkyc_status, core_non_core, blaze_output, kyc_completed')
             .range(from, from + batchSize - 1);
 
           if (error || !batch) break;
