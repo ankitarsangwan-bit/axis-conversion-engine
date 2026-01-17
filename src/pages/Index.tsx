@@ -1,15 +1,15 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect, Suspense, lazy } from 'react';
 import { DateRange } from 'react-day-picker';
 import { subMonths } from 'date-fns';
-import { FullViewTab } from '@/components/dashboard/FullViewTab';
-import { QualityViewTab } from '@/components/dashboard/QualityViewTab';
-import { DataFreshnessTab } from '@/components/dashboard/DataFreshnessTab';
-import { ConflictResolutionTab } from '@/components/dashboard/ConflictResolutionTab';
-import { MISUploadTab } from '@/components/dashboard/MISUploadTab';
-import { StpkVkycTab } from '@/components/dashboard/StpkVkycTab';
 import { AppSidebar } from '@/components/AppSidebar';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { DateRangeFilter } from '@/components/DateRangeFilter';
+import { 
+  FullViewSkeleton,
+  QualityViewSkeleton,
+  DataFreshnessSkeleton,
+  TableSkeleton
+} from '@/components/dashboard/DashboardSkeleton';
 import { 
   getAxisSummaryByMonth, 
   getAxisTotals, 
@@ -23,6 +23,14 @@ import {
   getVkycFunnelByMonth
 } from '@/data/sampleAxisData';
 
+// Lazy load tab components
+const FullViewTab = lazy(() => import('@/components/dashboard/FullViewTab').then(m => ({ default: m.FullViewTab })));
+const QualityViewTab = lazy(() => import('@/components/dashboard/QualityViewTab').then(m => ({ default: m.QualityViewTab })));
+const DataFreshnessTab = lazy(() => import('@/components/dashboard/DataFreshnessTab').then(m => ({ default: m.DataFreshnessTab })));
+const ConflictResolutionTab = lazy(() => import('@/components/dashboard/ConflictResolutionTab').then(m => ({ default: m.ConflictResolutionTab })));
+const MISUploadTab = lazy(() => import('@/components/dashboard/MISUploadTab').then(m => ({ default: m.MISUploadTab })));
+const StpkVkycTab = lazy(() => import('@/components/dashboard/StpkVkycTab').then(m => ({ default: m.StpkVkycTab })));
+
 function Index() {
   const [activeTab, setActiveTab] = useState('full-view');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -30,35 +38,66 @@ function Index() {
     from: subMonths(new Date(), 3),
     to: new Date(),
   });
+  const [isLoading, setIsLoading] = useState(true);
 
-  const summaryRows = getAxisSummaryByMonth();
-  const totals = getAxisTotals();
-  const qualityRows = getQualitySummary();
-  const freshnessRows = getDataFreshness();
-  const conflicts = getConflictRecords();
-  const uploadSummary = getUploadSummary();
-  const misUploadHistory = getMISUploadHistory();
-  const currentMISUpload = getCurrentMISUpload();
-  const vkycFunnelMetrics = getVkycFunnelMetrics();
-  const vkycFunnelByMonth = getVkycFunnelByMonth();
+  // Simulate initial data load
+  useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 300);
+    return () => clearTimeout(timer);
+  }, []);
 
-  const renderContent = () => {
+  // Memoize expensive data calculations
+  const summaryRows = useMemo(() => getAxisSummaryByMonth(), []);
+  const totals = useMemo(() => getAxisTotals(), []);
+  const qualityRows = useMemo(() => getQualitySummary(), []);
+  const freshnessRows = useMemo(() => getDataFreshness(), []);
+  const conflicts = useMemo(() => getConflictRecords(), []);
+  const uploadSummary = useMemo(() => getUploadSummary(), []);
+  const misUploadHistory = useMemo(() => getMISUploadHistory(), []);
+  const currentMISUpload = useMemo(() => getCurrentMISUpload(), []);
+  const vkycFunnelMetrics = useMemo(() => getVkycFunnelMetrics(), []);
+  const vkycFunnelByMonth = useMemo(() => getVkycFunnelByMonth(), []);
+
+  const getSkeleton = () => {
     switch (activeTab) {
       case 'full-view':
-        return <FullViewTab summaryRows={summaryRows} totals={totals} />;
+        return <FullViewSkeleton />;
       case 'quality-view':
-        return <QualityViewTab qualityRows={qualityRows} />;
-      case 'mis-upload':
-        return <MISUploadTab currentUpload={currentMISUpload} uploadHistory={misUploadHistory} />;
+        return <QualityViewSkeleton />;
       case 'data-freshness':
-        return <DataFreshnessTab freshnessRows={freshnessRows} uploadSummary={uploadSummary} />;
-      case 'stpk-vkyc':
-        return <StpkVkycTab funnelMetrics={vkycFunnelMetrics} funnelByMonth={vkycFunnelByMonth} />;
-      case 'conflicts':
-        return <ConflictResolutionTab conflicts={conflicts} />;
+        return <DataFreshnessSkeleton />;
       default:
-        return <FullViewTab summaryRows={summaryRows} totals={totals} />;
+        return <TableSkeleton rows={6} />;
     }
+  };
+
+  const renderContent = () => {
+    if (isLoading) {
+      return getSkeleton();
+    }
+
+    return (
+      <Suspense fallback={getSkeleton()}>
+        {(() => {
+          switch (activeTab) {
+            case 'full-view':
+              return <FullViewTab summaryRows={summaryRows} totals={totals} />;
+            case 'quality-view':
+              return <QualityViewTab qualityRows={qualityRows} />;
+            case 'mis-upload':
+              return <MISUploadTab currentUpload={currentMISUpload} uploadHistory={misUploadHistory} />;
+            case 'data-freshness':
+              return <DataFreshnessTab freshnessRows={freshnessRows} uploadSummary={uploadSummary} />;
+            case 'stpk-vkyc':
+              return <StpkVkycTab funnelMetrics={vkycFunnelMetrics} funnelByMonth={vkycFunnelByMonth} />;
+            case 'conflicts':
+              return <ConflictResolutionTab conflicts={conflicts} />;
+            default:
+              return <FullViewTab summaryRows={summaryRows} totals={totals} />;
+          }
+        })()}
+      </Suspense>
+    );
   };
 
   const getPageTitle = () => {
