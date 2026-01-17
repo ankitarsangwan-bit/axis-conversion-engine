@@ -3,6 +3,7 @@ import { AxisSummaryRow } from '@/types/axis';
 import { ConversionTrendChart } from './ConversionTrendChart';
 import { KpiCard } from '@/components/KpiCard';
 import { ExportButton } from '@/components/ExportButton';
+import { KycBreakdownCard } from './KycBreakdownCard';
 
 interface FullViewTabProps {
   summaryRows: AxisSummaryRow[];
@@ -88,8 +89,13 @@ export function FullViewTab({ summaryRows, totals }: FullViewTabProps) {
         />
       </div>
 
-      {/* Trend Charts */}
-      <ConversionTrendChart summaryRows={summaryRows} />
+      {/* KYC Breakdown + Trend Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <KycBreakdownCard />
+        <div className="lg:col-span-2">
+          <ConversionTrendChart summaryRows={summaryRows} />
+        </div>
+      </div>
 
       {/* Leadership Summary Table */}
       <Card className="border-border">
