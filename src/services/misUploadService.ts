@@ -144,106 +144,133 @@ export async function saveMISUpload(
       }
     }
 
-    // Update existing records
-    for (const record of changePreview.updatedRecords) {
-      const rawBlazeOutput = record.newValues?.blaze_output as string;
-      const rawCoreNonCore = record.newValues?.core_non_core as string;
+    // Update existing records in BATCHES using upsert (much faster than individual updates)
+    if (changePreview.updatedRecords.length > 0) {
+      const batchSize = 500;
+      const allConflicts: Array<{
+        application_id: string;
+        field_name: string;
+        old_value: string;
+        new_value: string;
+        upload_id: string;
+        resolution: string;
+        resolved_at: string;
+      }> = [];
       
-      // Track missing required fields
-      if (!rawBlazeOutput || rawBlazeOutput.trim() === '') {
-        missingFieldConflicts.push({
-          application_id: record.application_id,
-          field_name: 'blaze_output',
-          old_value: '',
-          new_value: 'STPK (defaulted - missing in MIS)',
-        });
-      }
-      if (!rawCoreNonCore || rawCoreNonCore.trim() === '') {
-        missingFieldConflicts.push({
-          application_id: record.application_id,
-          field_name: 'core_non_core',
-          old_value: '',
-          new_value: 'Core (defaulted - missing in MIS)',
-        });
-      }
+      for (let i = 0; i < changePreview.updatedRecords.length; i += batchSize) {
+        const batch = changePreview.updatedRecords.slice(i, i + batchSize);
+        
+        const recordsToUpsert = batch.map(record => {
+          const rawBlazeOutput = record.newValues?.blaze_output as string;
+          const rawCoreNonCore = record.newValues?.core_non_core as string;
+          
+          // Track missing required fields
+          if (!rawBlazeOutput || rawBlazeOutput.trim() === '') {
+            missingFieldConflicts.push({
+              application_id: record.application_id,
+              field_name: 'blaze_output',
+              old_value: '',
+              new_value: 'STPK (defaulted - missing in MIS)',
+            });
+          }
+          if (!rawCoreNonCore || rawCoreNonCore.trim() === '') {
+            missingFieldConflicts.push({
+              application_id: record.application_id,
+              field_name: 'core_non_core',
+              old_value: '',
+              new_value: 'Core (defaulted - missing in MIS)',
+            });
+          }
 
-      // Normalize with defaults
-      const blazeOutput = normalizeBlazeOutput(rawBlazeOutput);
-      const loginStatus = record.newValues?.login_status ? String(record.newValues.login_status) : null;
-      const finalStatus = String(record.newValues?.final_status || '');
-      const vkycStatus = String(record.newValues?.vkyc_status || '');
-      const coreNonCore = normalizeCoreNonCore(rawCoreNonCore);
-      const lastUpdatedDate = record.newValues?.last_updated_date 
-        ? normalizeToISODate(String(record.newValues.last_updated_date))
-        : new Date().toISOString();
+          // Normalize with defaults
+          const blazeOutput = normalizeBlazeOutput(rawBlazeOutput);
+          const loginStatus = record.newValues?.login_status ? String(record.newValues.login_status) : null;
+          const finalStatus = String(record.newValues?.final_status || '');
+          const vkycStatus = String(record.newValues?.vkyc_status || '');
+          const coreNonCore = normalizeCoreNonCore(rawCoreNonCore);
+          const lastUpdatedDate = record.newValues?.last_updated_date 
+            ? normalizeToISODate(String(record.newValues.last_updated_date))
+            : new Date().toISOString();
 
-      // Get decline reason (Reason column)
-      const declineReason = record.newValues?.rejection_reason ? String(record.newValues.rejection_reason) : null;
+          // Get decline reason (Reason column)
+          const declineReason = record.newValues?.rejection_reason ? String(record.newValues.rejection_reason) : null;
 
-      // Apply business logic with new VKYC_Done and KYC_Done flags
-      const leadQuality = deriveLeadQuality(blazeOutput);
-      const vkycDone = isVkycDone(vkycStatus);
-      const kycCompleted = isKycCompleted(
-        loginStatus, 
-        finalStatus, 
-        vkycStatus, 
-        coreNonCore,
-        declineReason
-      );
-      const cardApproved = isCardApproved(finalStatus);
-      const month = getMonthFromDate(lastUpdatedDate);
+          // Apply business logic with new VKYC_Done and KYC_Done flags
+          const leadQuality = deriveLeadQuality(blazeOutput);
+          const kycCompleted = isKycCompleted(
+            loginStatus, 
+            finalStatus, 
+            vkycStatus, 
+            coreNonCore,
+            declineReason
+          );
+          const cardApproved = isCardApproved(finalStatus);
+          const month = getMonthFromDate(lastUpdatedDate);
 
-      const updateData: Record<string, any> = {
-        upload_id: upload.id,
-        last_updated_date: lastUpdatedDate,
-        blaze_output: blazeOutput,
-        login_status: loginStatus,
-        final_status: finalStatus,
-        vkyc_status: vkycStatus,
-        core_non_core: coreNonCore,
-        rejection_reason: record.newValues?.rejection_reason ? String(record.newValues.rejection_reason) : null,
-        lead_quality: leadQuality,
-        kyc_completed: kycCompleted,
-        month: month,
-        dedupe_pass: leadQuality !== 'Rejected' ? 1 : 0,
-        bureau_pass: leadQuality === 'Good' ? 1 : 0,
-        vkyc_pass: kycCompleted ? 1 : 0,
-        disbursed: cardApproved ? 1 : 0,
-      };
+          // Collect field change conflicts
+          if (record.changedFields && record.oldValues && record.newValues) {
+            for (const field of record.changedFields) {
+              allConflicts.push({
+                application_id: record.application_id,
+                field_name: field,
+                old_value: String(record.oldValues[field] ?? ''),
+                new_value: String(record.newValues[field] ?? ''),
+                upload_id: upload.id,
+                resolution: 'auto-resolved',
+                resolved_at: new Date().toISOString(),
+              });
+            }
+          }
 
-      if (record.newValues?.vkyc_eligible) {
-        updateData.vkyc_eligible = String(record.newValues.vkyc_eligible);
-      }
-      if (record.newValues?.state) {
-        updateData.state = String(record.newValues.state);
-      }
-      if (record.newValues?.product) {
-        updateData.product = String(record.newValues.product);
-      }
-
-      const { error: updateError } = await supabase
-        .from('mis_records')
-        .update(updateData)
-        .eq('application_id', record.application_id);
-
-      if (updateError) {
-        console.error('Error updating record:', updateError);
-      }
-
-      // Create conflict records for field changes
-      if (record.changedFields && record.oldValues && record.newValues) {
-        for (const field of record.changedFields) {
-          await supabase.from('data_conflicts').insert({
+          return {
             application_id: record.application_id,
-            field_name: field,
-            old_value: String(record.oldValues[field] ?? ''),
-            new_value: String(record.newValues[field] ?? ''),
             upload_id: upload.id,
-            resolution: 'auto-resolved',
-            resolved_at: new Date().toISOString(),
-          });
+            last_updated_date: lastUpdatedDate,
+            blaze_output: blazeOutput,
+            login_status: loginStatus,
+            final_status: finalStatus,
+            vkyc_status: vkycStatus,
+            core_non_core: coreNonCore,
+            rejection_reason: record.newValues?.rejection_reason ? String(record.newValues.rejection_reason) : null,
+            lead_quality: leadQuality,
+            kyc_completed: kycCompleted,
+            month: month,
+            dedupe_pass: leadQuality !== 'Rejected' ? 1 : 0,
+            bureau_pass: leadQuality === 'Good' ? 1 : 0,
+            vkyc_pass: kycCompleted ? 1 : 0,
+            disbursed: cardApproved ? 1 : 0,
+            vkyc_eligible: record.newValues?.vkyc_eligible ? String(record.newValues.vkyc_eligible) : null,
+            state: record.newValues?.state ? String(record.newValues.state) : null,
+            product: record.newValues?.product ? String(record.newValues.product) : null,
+            applications: 1,
+          };
+        });
+
+        // Use upsert with onConflict to batch update
+        const { error: upsertError } = await supabase
+          .from('mis_records')
+          .upsert(recordsToUpsert, { onConflict: 'application_id' });
+
+        if (upsertError) {
+          console.error('Error upserting batch:', upsertError);
         }
       }
+
+      // Batch insert all conflicts at once
+      if (allConflicts.length > 0) {
+        for (let i = 0; i < allConflicts.length; i += batchSize) {
+          const conflictBatch = allConflicts.slice(i, i + batchSize);
+          const { error: conflictError } = await supabase
+            .from('data_conflicts')
+            .insert(conflictBatch);
+          
+          if (conflictError) {
+            console.error('Error inserting conflicts batch:', conflictError);
+          }
+        }
+      }
+      
+      console.log(`Batch updated ${changePreview.updatedRecords.length} records`);
     }
 
     // Insert missing field conflicts (pending resolution)
