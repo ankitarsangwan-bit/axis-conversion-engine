@@ -14,7 +14,7 @@ import {
   OPTIONAL_COLUMNS,
   RawMISRow,
 } from '@/types/misUpload';
-import { sampleAxisApplications } from '@/data/sampleAxisData';
+import { supabase } from '@/integrations/supabase/client';
 import { saveMISUpload } from '@/services/misUploadService';
 
 const initialState: UploadState = {
@@ -182,14 +182,20 @@ export function useMISUpload() {
     }));
   }, [state.parsedFile, state.columnMappings]);
 
-  const generatePreview = useCallback(() => {
+  const generatePreview = useCallback(async () => {
     if (!state.parsedFile || !state.validationResult?.isValid) return;
 
     setState(prev => ({ ...prev, isProcessing: true }));
 
+    // Fetch existing records from database with no row limit
+    const { data: existingRecords } = await supabase
+      .from('mis_records')
+      .select('application_id, month, state, product, applications, dedupe_pass, bureau_pass, vkyc_pass, disbursed')
+      .range(0, 100000);
+
     // Build a lookup of current data by application_id
     const currentDataMap = new Map(
-      sampleAxisApplications.map(app => [app.application_id, app])
+      (existingRecords || []).map((app: any) => [app.application_id, app])
     );
 
     // Build column mapping lookup
@@ -241,25 +247,23 @@ export function useMISUpload() {
           newValues,
         });
       } else {
-        // Compare values
+        // Compare values - compare all mapped fields
         const changedFields: string[] = [];
-        const oldValues: Record<string, string | number | null> = {
-          application_id: existing.application_id,
-          blaze_output: existing.blaze_output,
-          login_status: existing.login_status,
-          final_status: existing.final_status,
-          last_updated_date: existing.last_updated_date,
-        };
+        const oldValues: Record<string, string | number | null> = {};
 
-        if (String(newValues.blaze_output || '') !== existing.blaze_output) {
-          changedFields.push('blaze_output');
-        }
-        if (String(newValues.login_status || '') !== (existing.login_status || '')) {
-          changedFields.push('login_status');
-        }
-        if (String(newValues.final_status || '') !== existing.final_status) {
-          changedFields.push('final_status');
-        }
+        // Build oldValues from existing record
+        Object.keys(existing).forEach(key => {
+          oldValues[key] = existing[key];
+        });
+
+        // Compare each mapped field
+        mappingLookup.forEach((source, target) => {
+          const newVal = String(newValues[target] ?? '');
+          const oldVal = String(existing[target] ?? '');
+          if (newVal !== oldVal) {
+            changedFields.push(target);
+          }
+        });
 
         if (changedFields.length > 0) {
           updatedRecords.push({

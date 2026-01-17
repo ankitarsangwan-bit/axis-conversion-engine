@@ -138,9 +138,11 @@ function mapUploadFromDB(upload: any): MISUpload {
 
 // Compute dashboard data from database records
 async function computeDashboardFromDB(): Promise<DashboardData> {
-  const { data: records } = await supabase
+  // Fetch all records - remove default 1000 limit
+  const { data: records, count } = await supabase
     .from('mis_records')
-    .select('*');
+    .select('*', { count: 'exact' })
+    .range(0, 100000); // Override default 1000 limit
 
   const { data: uploads } = await supabase
     .from('mis_uploads')
@@ -150,11 +152,13 @@ async function computeDashboardFromDB(): Promise<DashboardData> {
   const { data: conflicts } = await supabase
     .from('data_conflicts')
     .select('*')
-    .eq('resolution', 'pending');
+    .eq('resolution', 'pending')
+    .range(0, 100000);
 
   const { data: vkycData } = await supabase
     .from('vkyc_metrics')
-    .select('*');
+    .select('*')
+    .range(0, 100000);
 
   // Process MIS records into dashboard format
   const processedRecords = (records || []).map((r: any) => ({
