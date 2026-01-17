@@ -57,6 +57,7 @@ export function KycBreakdownCard() {
           const finalStatus = (r.final_status || '').toUpperCase().trim();
           const coreNonCore = (r.core_non_core || '').toUpperCase().trim();
           const declineReason = (r.rejection_reason || '').toUpperCase().trim();
+          const blazeOutput = (r.blaze_output || '').toUpperCase().trim();
 
           // Check if this is an auto-decline (these remain KYC Pending)
           const isAutoDecline = AUTO_DECLINE_REASONS.some(reason => declineReason.includes(reason));
@@ -75,13 +76,16 @@ export function KycBreakdownCard() {
             byNonCore++;
           }
           // Rule 4: Final status moved beyond IPA BUT exclude auto-declines
-          // Auto-declines without login/VKYC = KYC Pending
           else if (finalStatus !== '' && finalStatus !== 'IPA') {
             if (isAutoDecline) {
               kycPending++; // Auto-decline = KYC not actually done
             } else {
               byFinalStatus++; // Genuine decline/approval after IPA = KYC Done
             }
+          }
+          // Rule 5: Blaze rejected leads = KYC Done (no KYC needed for rejected leads)
+          else if (blazeOutput === 'REJECT' || blazeOutput === 'REJECTED') {
+            byFinalStatus++; // Count under final status category
           }
           // Everything else = KYC Pending
           else {
