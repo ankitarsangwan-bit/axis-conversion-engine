@@ -2,7 +2,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { ChangePreview, PreviewRecord } from '@/types/misUpload';
 import { 
   deriveLeadQuality, 
-  isKycCompleted, 
+  isKycCompleted,
+  isVkycDone,
   isCardApproved,
   getMonthFromDate,
   normalizeBlazeOutput,
@@ -91,9 +92,19 @@ export async function saveMISUpload(
             ? String(r.newValues.last_updated_date) 
             : new Date().toISOString();
 
-          // Apply business logic
+          // Get rejection reason if available
+          const rejectionReason = r.newValues?.rejection_reason ? String(r.newValues.rejection_reason) : null;
+
+          // Apply business logic with new VKYC_Done and KYC_Done flags
           const leadQuality = deriveLeadQuality(blazeOutput);
-          const kycCompleted = isKycCompleted(loginStatus, finalStatus);
+          const vkycDone = isVkycDone(vkycStatus);
+          const kycCompleted = isKycCompleted(
+            loginStatus, 
+            finalStatus, 
+            vkycStatus, 
+            coreNonCore, 
+            rejectionReason
+          );
           const cardApproved = isCardApproved(finalStatus);
           const month = getMonthFromDate(lastUpdatedDate);
 
@@ -162,9 +173,19 @@ export async function saveMISUpload(
         ? String(record.newValues.last_updated_date) 
         : new Date().toISOString();
 
-      // Apply business logic
+      // Get rejection reason if available
+      const rejectionReason = record.newValues?.rejection_reason ? String(record.newValues.rejection_reason) : null;
+
+      // Apply business logic with new VKYC_Done and KYC_Done flags
       const leadQuality = deriveLeadQuality(blazeOutput);
-      const kycCompleted = isKycCompleted(loginStatus, finalStatus);
+      const vkycDone = isVkycDone(vkycStatus);
+      const kycCompleted = isKycCompleted(
+        loginStatus, 
+        finalStatus, 
+        vkycStatus, 
+        coreNonCore, 
+        rejectionReason
+      );
       const cardApproved = isCardApproved(finalStatus);
       const month = getMonthFromDate(lastUpdatedDate);
 
