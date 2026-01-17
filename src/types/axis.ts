@@ -169,22 +169,138 @@ const POST_KYC_REJECTIONS = ['REJECTED', 'DECLINED'];
 // Card approved outcomes
 const CARD_APPROVED_OUTCOMES = ['APPROVED', 'DISBURSED', 'CARD DISPATCHED', 'SANCTIONED'];
 
-// KYC Completion check
-export function isKycCompleted(loginStatus: string | null, finalStatus: string): boolean {
-  const hasLoginStatus = loginStatus !== null && 
-    loginStatus !== '' && 
-    loginStatus.toLowerCase().includes('login');
+// Auto-decline reasons that should NOT count as KYC Done
+const AUTO_DECLINE_REASONS = ['IPA NON RESOLVED', 'TIME EXPIRED', 'AUTO DECLINE', 'AUTO-DECLINE'];
+
+// Valid login statuses that indicate KYC completion
+const VALID_LOGIN_STATUSES = ['LOGIN', 'LOGIN 26'];
+
+// VKYC statuses that indicate VKYC is Done (reached final outcome)
+const VKYC_DONE_STATUSES = ['APPROVED', 'REJECTED'];
+
+// VKYC statuses that allow re-attempt
+const VKYC_REDO_ALLOWED_STATUSES = ['DROPPED', 'PENDING', ''];
+
+/**
+ * VKYC Done Flag
+ * Definition: Digital KYC attempt reached a final outcome
+ * 
+ * VKYC_Done = Y IF vkyc_status IN ('Approved','Rejected')
+ * ELSE VKYC_Done = N
+ */
+export function isVkycDone(vkycStatus: string | null | undefined): boolean {
+  const normalized = vkycStatus?.toUpperCase()?.trim() || '';
+  return VKYC_DONE_STATUSES.includes(normalized);
+}
+
+/**
+ * VKYC Re-attempt Allowed Flag
+ * 
+ * VKYC_Redo_Allowed = Y IF vkyc_status IS NULL OR vkyc_status IN ('Dropped','Pending')
+ * ELSE VKYC_Redo_Allowed = N
+ */
+export function isVkycRedoAllowed(vkycStatus: string | null | undefined): boolean {
+  const normalized = vkycStatus?.toUpperCase()?.trim() || '';
+  return normalized === '' || VKYC_REDO_ALLOWED_STATUSES.includes(normalized);
+}
+
+/**
+ * Check if login status indicates KYC completion
+ * login_status IN ('Login','Login 26')
+ */
+function hasValidLogin(loginStatus: string | null | undefined): boolean {
+  const normalized = loginStatus?.toUpperCase()?.trim() || '';
+  return VALID_LOGIN_STATUSES.includes(normalized);
+}
+
+/**
+ * Check if this is an auto-decline (should NOT count as KYC Done)
+ */
+function isAutoDecline(rejectionReason: string | null | undefined): boolean {
+  const normalized = rejectionReason?.toUpperCase()?.trim() || '';
+  return AUTO_DECLINE_REASONS.some(reason => normalized.includes(reason));
+}
+
+/**
+ * KYC Done Flag - Final Logic (Overall)
+ * 
+ * Definition: KYC journey is closed, either because:
+ * - KYC attempt happened (digital or physical), OR
+ * - KYC is not possible (non-core city)
+ * 
+ * KYC_Done = Y IF ANY ONE of the following is true:
+ * 
+ * Rule 1: Login achieved - login_status IN ('Login','Login 26')
+ * Rule 2: VKYC attempt completed - vkyc_status IN ('Approved','Rejected')
+ * Rule 3: Physical KYC completed - physical_pickup_completed = Y OR physical_login = Y
+ *         (Not in current schema - handled if fields become available)
+ * Rule 4: Final status progressed beyond IPA (excluding auto-declines)
+ *         final_status != 'IPA' AND decline_reason NOT IN auto-decline list
+ * Rule 5: Non-Core City (FORCED CLOSURE) - core_non_core = 'Non-Core'
+ * 
+ * KYC_Done = N ONLY WHEN ALL are true:
+ * - login_status IS NULL
+ * - vkyc_status IS NULL OR IN ('Dropped','Pending')
+ * - physical_pickup_completed != Y (if available)
+ * - final_status = 'IPA'
+ * - core_non_core = 'Core'
+ */
+export function isKycCompleted(
+  loginStatus: string | null | undefined,
+  finalStatus: string | null | undefined,
+  vkycStatus?: string | null | undefined,
+  coreNonCore?: string | null | undefined,
+  rejectionReason?: string | null | undefined,
+  physicalPickupCompleted?: boolean,
+  physicalLogin?: boolean
+): boolean {
+  const normalizedFinalStatus = finalStatus?.toUpperCase()?.trim() || '';
+  const normalizedCoreNonCore = coreNonCore?.toUpperCase()?.trim() || 'CORE';
   
-  if (hasLoginStatus) {
+  // Rule 1: Login achieved
+  if (hasValidLogin(loginStatus)) {
     return true;
   }
   
-  const normalizedFinalStatus = finalStatus?.toUpperCase()?.trim() || '';
-  const isPostKycOutcome = POST_KYC_OUTCOMES.some(outcome => 
-    normalizedFinalStatus.includes(outcome)
-  );
+  // Rule 2: VKYC attempt completed (Approved or Rejected)
+  if (isVkycDone(vkycStatus)) {
+    return true;
+  }
   
-  return isPostKycOutcome;
+  // Rule 3: Physical KYC completed (if fields are available)
+  if (physicalPickupCompleted === true || physicalLogin === true) {
+    return true;
+  }
+  
+  // Rule 5: Non-Core City (FORCED CLOSURE)
+  // For non-core cases, KYC is not serviceable → must be marked KYC Done
+  if (normalizedCoreNonCore === 'NON-CORE') {
+    return true;
+  }
+  
+  // Rule 4: Final status progressed beyond IPA (excluding auto-declines)
+  // CRITICAL EDGE CASE: Auto-decline after 25 days without KYC attempt = KYC Pending
+  if (normalizedFinalStatus !== '' && normalizedFinalStatus !== 'IPA') {
+    // Check if this is an auto-decline without any KYC attempt
+    if (isAutoDecline(rejectionReason)) {
+      // Auto-decline without login/VKYC attempt = still KYC Pending
+      // We already checked login and VKYC above, so if we're here, no KYC attempt was made
+      return false;
+    }
+    // Not an auto-decline and status progressed beyond IPA
+    return true;
+  }
+  
+  // Default: KYC is NOT done (genuine KYC Pending)
+  return false;
+}
+
+/**
+ * Legacy compatibility wrapper - uses old signature
+ * @deprecated Use isKycCompleted with all parameters for accurate results
+ */
+export function isKycCompletedLegacy(loginStatus: string | null, finalStatus: string): boolean {
+  return isKycCompleted(loginStatus, finalStatus);
 }
 
 export function getKycStatus(kycCompleted: boolean): KycStatus {
