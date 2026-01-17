@@ -25,6 +25,9 @@ export const REQUIRED_COLUMNS = [
 
 export const OPTIONAL_COLUMNS = [
   'vkyc_eligible',
+  'rejection_reason',
+  'state',
+  'product',
 ] as const;
 
 export type RequiredColumn = typeof REQUIRED_COLUMNS[number];

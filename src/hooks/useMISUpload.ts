@@ -363,25 +363,53 @@ export function useMISUpload() {
   };
 }
 
+// Column name aliases for smart matching
+const COLUMN_ALIASES: Record<string, string[]> = {
+  'application_id': ['application_id', 'app_id', 'applicationid', 'appid', 'application id', 'app id', 'id'],
+  'blaze_output': ['blaze_output', 'blazeoutput', 'blaze output', 'blaze', 'blaze_op', 'blazeop'],
+  'login_status': ['login_status', 'loginstatus', 'login status', 'login_st', 'login', 'loginstages'],
+  'final_status': ['final_status', 'finalstatus', 'final status', 'final_st', 'finalst', 'status', 'final'],
+  'last_updated_date': ['last_updated_date', 'lastupdateddate', 'last updated date', 'update_date', 'updatedate', 'updated_date', 'updateddate', 'date', 'lastupdate'],
+  'vkyc_status': ['vkyc_status', 'vkycstatus', 'vkyc status', 'vkyc_st', 'vkycst', 'vkyc', 'v_kyc_status'],
+  'core_non_core': ['core_non_core', 'corenoncore', 'core non core', 'core_noncore', 'corenoncore', 'core/non-core', 'core / non-core', 'core', 'noncore'],
+  'vkyc_eligible': ['vkyc_eligible', 'vkyceligible', 'vkyc eligible', 'vkyc_elig', 'vkycelig', 'eligibility'],
+  'rejection_reason': ['rejection_reason', 'rejectionreason', 'rejection reason', 'reject_reason', 'rejectreason', 'decline_reason', 'declinereason', 'decline reason'],
+  'state': ['state', 'st', 'location_state'],
+  'product': ['product', 'prod', 'product_name', 'productname'],
+};
+
 function generateColumnMappings(sourceColumns: string[]): ColumnMapping[] {
   const allTargets = [...REQUIRED_COLUMNS, ...OPTIONAL_COLUMNS];
 
   return sourceColumns.map(source => {
-    const normalized = source.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const normalizedSource = source.toLowerCase().replace(/[^a-z0-9]/g, '');
     
-    // Try to find a matching target column
-    const matchedTarget = allTargets.find(target => {
-      const targetNorm = target.toLowerCase();
-      return normalized === targetNorm || 
-             normalized.includes(targetNorm) || 
-             targetNorm.includes(normalized);
-    });
+    // Try to find a matching target column using aliases
+    let matchedTarget: string | null = null;
+    
+    for (const [target, aliases] of Object.entries(COLUMN_ALIASES)) {
+      const normalizedAliases = aliases.map(a => a.toLowerCase().replace(/[^a-z0-9]/g, ''));
+      if (normalizedAliases.includes(normalizedSource)) {
+        matchedTarget = target;
+        break;
+      }
+    }
+    
+    // Fallback: try substring matching if no alias match
+    if (!matchedTarget) {
+      matchedTarget = allTargets.find(target => {
+        const targetNorm = target.toLowerCase().replace(/[^a-z0-9]/g, '');
+        return normalizedSource === targetNorm || 
+               normalizedSource.includes(targetNorm) || 
+               targetNorm.includes(normalizedSource);
+      }) || null;
+    }
 
     const isRequired = matchedTarget ? REQUIRED_COLUMNS.includes(matchedTarget as any) : false;
 
     return {
       sourceColumn: source,
-      targetColumn: matchedTarget || null,
+      targetColumn: matchedTarget as ColumnMapping['targetColumn'],
       isRequired,
       isMapped: !!matchedTarget,
     };
