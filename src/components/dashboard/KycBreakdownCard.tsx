@@ -1,8 +1,9 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, UserCheck, FileCheck, MapPin, Clock, Loader2, XCircle } from 'lucide-react';
+import { CheckCircle2, UserCheck, FileCheck, MapPin, Clock, Loader2, XCircle, ChevronRight } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { KycRecordsDialog, KycCategory } from './KycRecordsDialog';
 
 interface KycBreakdown {
   byLogin: number;
@@ -17,6 +18,8 @@ interface KycBreakdown {
 export function KycBreakdownCard() {
   const [breakdown, setBreakdown] = useState<KycBreakdown | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState<KycCategory | null>(null);
+  const [selectedLabel, setSelectedLabel] = useState('');
 
   useEffect(() => {
     async function fetchBreakdown() {
@@ -131,7 +134,17 @@ export function KycBreakdownCard() {
   const getPercent = (value: number) => totalEligible > 0 ? ((value / totalEligible) * 100).toFixed(1) : '0.0';
   const getPercentOfTotal = (value: number) => grandTotal > 0 ? ((value / grandTotal) * 100).toFixed(1) : '0.0';
 
-  const rules = [
+  const rules: {
+    label: string;
+    description: string;
+    count: number;
+    icon: typeof XCircle;
+    color: string;
+    bgColor: string;
+    category: KycCategory;
+    isNotEligible?: boolean;
+    isPending?: boolean;
+  }[] = [
     {
       label: 'Not Eligible',
       description: 'blaze_output = Reject',
@@ -139,6 +152,7 @@ export function KycBreakdownCard() {
       icon: XCircle,
       color: 'text-muted-foreground',
       bgColor: 'bg-muted',
+      category: 'not_eligible',
       isNotEligible: true,
     },
     {
@@ -148,6 +162,7 @@ export function KycBreakdownCard() {
       icon: UserCheck,
       color: 'text-success',
       bgColor: 'bg-success/10',
+      category: 'by_login',
     },
     {
       label: 'By VKYC',
@@ -156,14 +171,16 @@ export function KycBreakdownCard() {
       icon: CheckCircle2,
       color: 'text-info',
       bgColor: 'bg-info/10',
+      category: 'by_vkyc',
     },
     {
       label: 'By Final Status',
-      description: 'final_status ≠ IPA (excl. auto-decline)',
+      description: 'final_status ≠ IPA',
       count: breakdown.byFinalStatus,
       icon: FileCheck,
       color: 'text-primary',
       bgColor: 'bg-primary/10',
+      category: 'by_final_status',
     },
     {
       label: 'By Non-Core',
@@ -172,6 +189,7 @@ export function KycBreakdownCard() {
       icon: MapPin,
       color: 'text-warning',
       bgColor: 'bg-warning/10',
+      category: 'by_non_core',
     },
     {
       label: 'KYC Pending',
@@ -180,9 +198,15 @@ export function KycBreakdownCard() {
       icon: Clock,
       color: 'text-destructive',
       bgColor: 'bg-destructive/10',
+      category: 'kyc_pending',
       isPending: true,
     },
   ];
+
+  const handleCategoryClick = (category: KycCategory, label: string) => {
+    setSelectedCategory(category);
+    setSelectedLabel(label);
+  };
 
   return (
     <Card className="border-border">
@@ -208,7 +232,11 @@ export function KycBreakdownCard() {
             const percent = isNotEligible ? getPercentOfTotal(rule.count) : getPercent(rule.count);
             
             return (
-              <div key={rule.label} className="flex items-center gap-3">
+              <button
+                key={rule.label}
+                onClick={() => handleCategoryClick(rule.category, rule.label)}
+                className="flex items-center gap-3 w-full text-left hover:bg-muted/50 rounded-lg p-2 -m-2 transition-colors group"
+              >
                 <div className={`flex items-center justify-center w-8 h-8 rounded-lg ${rule.bgColor}`}>
                   <Icon className={`h-4 w-4 ${rule.color}`} />
                 </div>
@@ -234,6 +262,7 @@ export function KycBreakdownCard() {
                       <span className="text-xs text-muted-foreground tabular-nums w-12 text-right">
                         {percent}%
                       </span>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground truncate">{rule.description}</p>
@@ -247,7 +276,7 @@ export function KycBreakdownCard() {
                     />
                   </div>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -276,6 +305,13 @@ export function KycBreakdownCard() {
           </div>
         </div>
       </CardContent>
+
+      <KycRecordsDialog
+        open={selectedCategory !== null}
+        onOpenChange={(open) => !open && setSelectedCategory(null)}
+        category={selectedCategory}
+        categoryLabel={selectedLabel}
+      />
     </Card>
   );
 }
