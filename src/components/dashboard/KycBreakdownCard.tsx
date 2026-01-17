@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, UserCheck, FileCheck, MapPin, Clock, Loader2 } from 'lucide-react';
+import { CheckCircle2, UserCheck, FileCheck, MapPin, Clock, Loader2, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -11,6 +11,7 @@ interface KycBreakdown {
   byNonCore: number;
   totalKycDone: number;
   kycPending: number;
+  notEligible: number;
 }
 
 export function KycBreakdownCard() {
@@ -46,6 +47,7 @@ export function KycBreakdownCard() {
         let byFinalStatus = 0;
         let byNonCore = 0;
         let kycPending = 0;
+        let notEligible = 0;
 
         const VALID_LOGIN = ['LOGIN', 'LOGIN 26'];
         const VKYC_DONE = ['APPROVED', 'REJECTED'];
@@ -62,9 +64,12 @@ export function KycBreakdownCard() {
           // Check if this is an auto-decline (these remain KYC Pending)
           const isAutoDecline = AUTO_DECLINE_REASONS.some(reason => declineReason.includes(reason));
 
-          // Check rules in priority order (same as isKycCompleted)
+          // Rule 0: Blaze rejected = Not Eligible for KYC (exclude from Done/Pending)
+          if (blazeOutput === 'REJECT' || blazeOutput === 'REJECTED') {
+            notEligible++;
+          }
           // Rule 1: Login done
-          if (VALID_LOGIN.includes(loginStatus)) {
+          else if (VALID_LOGIN.includes(loginStatus)) {
             byLogin++;
           }
           // Rule 2: VKYC completed (Approved/Rejected)
@@ -83,10 +88,6 @@ export function KycBreakdownCard() {
               byFinalStatus++; // Genuine decline/approval after IPA = KYC Done
             }
           }
-          // Rule 5: Blaze rejected leads = KYC Done (no KYC needed for rejected leads)
-          else if (blazeOutput === 'REJECT' || blazeOutput === 'REJECTED') {
-            byFinalStatus++; // Count under final status category
-          }
           // Everything else = KYC Pending
           else {
             kycPending++;
@@ -102,6 +103,7 @@ export function KycBreakdownCard() {
           byNonCore,
           totalKycDone,
           kycPending,
+          notEligible,
         });
       } catch (err) {
         console.error('Error computing KYC breakdown:', err);
@@ -133,10 +135,21 @@ export function KycBreakdownCard() {
     );
   }
 
-  const total = breakdown.totalKycDone + breakdown.kycPending;
-  const getPercent = (value: number) => total > 0 ? ((value / total) * 100).toFixed(1) : '0.0';
+  const totalEligible = breakdown.totalKycDone + breakdown.kycPending;
+  const grandTotal = totalEligible + breakdown.notEligible;
+  const getPercent = (value: number) => totalEligible > 0 ? ((value / totalEligible) * 100).toFixed(1) : '0.0';
+  const getPercentOfTotal = (value: number) => grandTotal > 0 ? ((value / grandTotal) * 100).toFixed(1) : '0.0';
 
   const rules = [
+    {
+      label: 'Not Eligible',
+      description: 'blaze_output = Reject',
+      count: breakdown.notEligible,
+      icon: XCircle,
+      color: 'text-muted-foreground',
+      bgColor: 'bg-muted',
+      isNotEligible: true,
+    },
     {
       label: 'By Login',
       description: 'login_status = Login / Login 26',
@@ -155,7 +168,7 @@ export function KycBreakdownCard() {
     },
     {
       label: 'By Final Status',
-      description: 'final_status ≠ IPA',
+      description: 'final_status ≠ IPA (excl. auto-decline)',
       count: breakdown.byFinalStatus,
       icon: FileCheck,
       color: 'text-primary',
@@ -176,6 +189,7 @@ export function KycBreakdownCard() {
       icon: Clock,
       color: 'text-destructive',
       bgColor: 'bg-destructive/10',
+      isPending: true,
     },
   ];
 
@@ -198,8 +212,9 @@ export function KycBreakdownCard() {
         <div className="space-y-3">
           {rules.map((rule, index) => {
             const Icon = rule.icon;
-            const percent = getPercent(rule.count);
-            const isPending = rule.label === 'KYC Pending';
+            const isNotEligible = 'isNotEligible' in rule && rule.isNotEligible;
+            const isPending = 'isPending' in rule && rule.isPending;
+            const percent = isNotEligible ? getPercentOfTotal(rule.count) : getPercent(rule.count);
             
             return (
               <div key={rule.label} className="flex items-center gap-3">
@@ -210,9 +225,14 @@ export function KycBreakdownCard() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{rule.label}</span>
-                      {!isPending && (
+                      {isNotEligible && (
+                        <Badge variant="outline" className="text-xs px-1.5 py-0 text-muted-foreground">
+                          Excluded
+                        </Badge>
+                      )}
+                      {!isPending && !isNotEligible && (
                         <Badge variant="outline" className="text-xs px-1.5 py-0">
-                          Rule {index + 1}
+                          Rule {index}
                         </Badge>
                       )}
                     </div>
@@ -230,7 +250,7 @@ export function KycBreakdownCard() {
                   <div className="h-1.5 bg-muted rounded-full mt-1.5 overflow-hidden">
                     <div 
                       className={`h-full rounded-full transition-all ${
-                        isPending ? 'bg-destructive' : 'bg-primary'
+                        isPending ? 'bg-destructive' : isNotEligible ? 'bg-muted-foreground' : 'bg-primary'
                       }`}
                       style={{ width: `${percent}%` }}
                     />
@@ -243,18 +263,24 @@ export function KycBreakdownCard() {
 
         {/* Summary */}
         <div className="mt-4 pt-4 border-t border-border">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-3">
             <div className="text-center p-3 rounded-lg bg-success/10">
-              <div className="text-2xl font-bold text-success tabular-nums">
+              <div className="text-xl font-bold text-success tabular-nums">
                 {breakdown.totalKycDone.toLocaleString()}
               </div>
-              <div className="text-xs text-muted-foreground">Total KYC Done</div>
+              <div className="text-xs text-muted-foreground">KYC Done</div>
             </div>
             <div className="text-center p-3 rounded-lg bg-destructive/10">
-              <div className="text-2xl font-bold text-destructive tabular-nums">
+              <div className="text-xl font-bold text-destructive tabular-nums">
                 {breakdown.kycPending.toLocaleString()}
               </div>
               <div className="text-xs text-muted-foreground">KYC Pending</div>
+            </div>
+            <div className="text-center p-3 rounded-lg bg-muted">
+              <div className="text-xl font-bold text-muted-foreground tabular-nums">
+                {breakdown.notEligible.toLocaleString()}
+              </div>
+              <div className="text-xs text-muted-foreground">Not Eligible</div>
             </div>
           </div>
         </div>
