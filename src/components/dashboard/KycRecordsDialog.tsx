@@ -26,8 +26,9 @@ interface MISRecord {
   month: string;
 }
 
-const VALID_LOGIN = ['LOGIN', 'LOGIN 26'];
-const VKYC_DONE = ['APPROVED', 'REJECTED'];
+// Updated to match actual DB values
+const VALID_LOGIN = ['LOGIN', 'LOGIN 26', 'IPA LOGIN', 'IPA 26 LOGIN'];
+const VKYC_DONE = ['APPROVED', 'REJECTED', 'HARD_ACCEPT', 'HARD_REJECT'];
 
 function categorizeRecord(r: MISRecord): KycCategory {
   const loginStatus = (r.login_status || '').toUpperCase().trim();
@@ -35,8 +36,8 @@ function categorizeRecord(r: MISRecord): KycCategory {
   const coreNonCore = (r.core_non_core || '').toUpperCase().trim();
   const blazeOutput = (r.blaze_output || '').toUpperCase().trim();
 
-  // Step 1: kyc_eligible from blaze_output (Reject = N, else Y)
-  const kycEligible = !(blazeOutput === 'REJECT' || blazeOutput === 'REJECTED');
+  // Step 1: kyc_eligible from blaze_output (starts with 'REJECT' = N, else Y)
+  const kycEligible = !blazeOutput.startsWith('REJECT');
 
   if (!kycEligible) {
     return 'not_eligible';
