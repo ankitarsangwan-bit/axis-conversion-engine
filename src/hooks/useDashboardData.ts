@@ -221,7 +221,27 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
     byNonCore: number;
     kycPending: number;
     approved: number;
+    rejectedPostKyc: number;
   }>();
+
+  // Quality-level tracking
+  const qualityGroups = new Map<string, {
+    total: number;
+    notEligible: number;
+    byLogin: number;
+    byVkyc: number;
+    byNonCore: number;
+    kycPending: number;
+    approved: number;
+    rejectedPostKyc: number;
+  }>();
+  
+  // Initialize quality groups
+  ['Good', 'Average', 'Rejected'].forEach(q => {
+    qualityGroups.set(q, {
+      total: 0, notEligible: 0, byLogin: 0, byVkyc: 0, byNonCore: 0, kycPending: 0, approved: 0, rejectedPostKyc: 0
+    });
+  });
 
   (records || []).forEach((r: any) => {
     const month = r.month || 'Unknown';
@@ -230,45 +250,77 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
     const coreNonCore = (r.core_non_core || '').toUpperCase().trim();
     const blazeOutput = (r.blaze_output || '').toUpperCase().trim();
     const finalStatus = (r.final_status || '').toUpperCase().trim();
+    const leadQuality = (r.lead_quality || 'Good').trim();
+
+    // Normalize lead_quality to Good/Average/Rejected
+    let quality = 'Good';
+    if (leadQuality.toUpperCase() === 'AVERAGE' || leadQuality === 'Average') {
+      quality = 'Average';
+    } else if (leadQuality.toUpperCase() === 'REJECTED' || leadQuality === 'Rejected') {
+      quality = 'Rejected';
+    }
 
     // Initialize month group if needed
     if (!monthGroups.has(month)) {
       monthGroups.set(month, {
-        total: 0, notEligible: 0, byLogin: 0, byVkyc: 0, byNonCore: 0, kycPending: 0, approved: 0
+        total: 0, notEligible: 0, byLogin: 0, byVkyc: 0, byNonCore: 0, kycPending: 0, approved: 0, rejectedPostKyc: 0
       });
     }
     const group = monthGroups.get(month)!;
+    const qualityGroup = qualityGroups.get(quality)!;
     
     group.total++;
+    qualityGroup.total++;
     totalApps++;
 
     // Check if card approved
     const cardApproved = ['APPROVED', 'DISBURSED', 'CARD DISPATCHED', 'SANCTIONED'].includes(finalStatus);
     if (cardApproved) {
       group.approved++;
+      qualityGroup.approved++;
       totalApproved++;
     }
+
+    // Check if rejected post-KYC
+    const rejectedPostKyc = ['REJECTED', 'DECLINED', 'CANCELLED'].includes(finalStatus);
 
     // Step 1: Determine kyc_eligible from blaze_output
     const kycEligible = !blazeOutput.startsWith('REJECT');
 
     if (!kycEligible) {
       group.notEligible++;
+      qualityGroup.notEligible++;
       totalNotEligible++;
     } else {
       // Step 2: For eligible records, determine kyc_done (priority order)
       if (VALID_LOGIN.includes(loginStatus)) {
         group.byLogin++;
+        qualityGroup.byLogin++;
         totalByLogin++;
+        if (rejectedPostKyc) {
+          group.rejectedPostKyc++;
+          qualityGroup.rejectedPostKyc++;
+        }
       } else if (VKYC_DONE.includes(vkycStatus)) {
         group.byVkyc++;
+        qualityGroup.byVkyc++;
         totalByVkyc++;
+        if (rejectedPostKyc) {
+          group.rejectedPostKyc++;
+          qualityGroup.rejectedPostKyc++;
+        }
       } else if (coreNonCore === 'NON-CORE') {
         group.byNonCore++;
+        qualityGroup.byNonCore++;
         totalByNonCore++;
+        if (rejectedPostKyc) {
+          group.rejectedPostKyc++;
+          qualityGroup.rejectedPostKyc++;
+        }
       } else {
         // kyc_pending = eligible AND NOT done
         group.kycPending++;
+        qualityGroup.kycPending++;
         totalKycPending++;
       }
     }
@@ -291,13 +343,34 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
       kycConversionPercent: eligible > 0 ? Math.round((kycDone / eligible) * 1000) / 10 : 0,
       cardsApproved: group.approved,
       approvalPercent: kycDone > 0 ? Math.round((group.approved / kycDone) * 1000) / 10 : 0,
-      rejectedPostKyc: 0,
-      rejectionPercent: 0,
+      rejectedPostKyc: group.rejectedPostKyc,
+      rejectionPercent: kycDone > 0 ? Math.round((group.rejectedPostKyc / kycDone) * 1000) / 10 : 0,
+    });
+  });
+
+  // Build quality rows from quality groups
+  const qualityRows: QualitySummaryRow[] = [];
+  qualityGroups.forEach((group, quality) => {
+    const eligible = group.total - group.notEligible;
+    const kycDone = group.byLogin + group.byVkyc + group.byNonCore;
+    
+    qualityRows.push({
+      quality: quality as 'Good' | 'Average' | 'Rejected',
+      totalApplications: group.total,
+      eligibleForKyc: eligible,
+      kycPending: group.kycPending, // Direct count, NOT subtraction
+      kycDone,
+      kycConversionPercent: eligible > 0 ? Math.round((kycDone / eligible) * 1000) / 10 : 0,
+      cardsApproved: group.approved,
+      approvalPercent: kycDone > 0 ? Math.round((group.approved / kycDone) * 1000) / 10 : 0,
+      rejectedPostKyc: group.rejectedPostKyc,
+      rejectionPercent: kycDone > 0 ? Math.round((group.rejectedPostKyc / kycDone) * 1000) / 10 : 0,
     });
   });
 
   const totalEligible = totalApps - totalNotEligible;
   const totalKycDone = totalByLogin + totalByVkyc + totalByNonCore;
+  const totalRejectedPostKyc = summaryRows.reduce((sum, r) => sum + r.rejectedPostKyc, 0);
 
   const totals: AxisSummaryRow = {
     bank: 'Axis',
@@ -310,8 +383,8 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
     kycConversionPercent: totalEligible > 0 ? Math.round((totalKycDone / totalEligible) * 1000) / 10 : 0,
     cardsApproved: totalApproved,
     approvalPercent: totalKycDone > 0 ? Math.round((totalApproved / totalKycDone) * 1000) / 10 : 0,
-    rejectedPostKyc: 0,
-    rejectionPercent: 0,
+    rejectedPostKyc: totalRejectedPostKyc,
+    rejectionPercent: totalKycDone > 0 ? Math.round((totalRejectedPostKyc / totalKycDone) * 1000) / 10 : 0,
   };
 
   // Map uploads
@@ -352,7 +425,7 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
   return {
     summaryRows: summaryRows.length > 0 ? summaryRows : getSampleSummary(),
     totals: summaryRows.length > 0 ? totals : getSampleTotals(),
-    qualityRows: getSampleQuality(), // Keep sample for now
+    qualityRows: qualityRows.length > 0 ? qualityRows : getSampleQuality(),
     freshnessRows: freshnessRows.length > 0 ? freshnessRows : getSampleFreshness(),
     conflicts: mappedConflicts.length > 0 ? mappedConflicts : getSampleConflicts(),
     uploadSummary: {
