@@ -1,4 +1,4 @@
-import { useState, Suspense, lazy, useCallback } from 'react';
+import { useState, Suspense, lazy, useCallback, useMemo } from 'react';
 import { DateRange } from 'react-day-picker';
 import { subMonths } from 'date-fns';
 import { RefreshCw } from 'lucide-react';
@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { AppSidebar } from '@/components/AppSidebar';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { DateRangeFilter } from '@/components/DateRangeFilter';
+import { QualityFilter, QualityLevel } from '@/components/QualityFilter';
 import { useDashboardData } from '@/hooks/useDashboardData';
 import { 
   FullViewSkeleton,
@@ -29,6 +30,7 @@ function Index() {
     from: subMonths(new Date(), 3),
     to: new Date(),
   });
+  const [qualityFilter, setQualityFilter] = useState<QualityLevel>('all');
 
   // Use the dashboard data hook with date range filter
   const { data, isLoading, refresh } = useDashboardData(dateRange);
@@ -54,8 +56,43 @@ function Index() {
     }
   };
 
+  // Filter summary rows by quality
+  const filteredData = useMemo(() => {
+    if (!data || qualityFilter === 'all') return data;
+    
+    // Find the quality row matching the filter
+    const qualityRow = data.qualityRows.find(q => q.quality === qualityFilter);
+    
+    if (!qualityRow) return data;
+    
+    // Create filtered summary rows from quality data
+    const filteredSummaryRows = data.summaryRows.map(row => ({
+      ...row,
+      // We'll need to recalculate based on quality - for now use quality totals
+    }));
+    
+    // Use quality row data as the filtered totals
+    const filteredTotals = {
+      ...data.totals,
+      totalApplications: qualityRow.totalApplications,
+      eligibleForKyc: qualityRow.eligibleForKyc,
+      kycPending: qualityRow.kycPending,
+      kycDone: qualityRow.kycDone,
+      kycConversionPercent: qualityRow.kycConversionPercent,
+      cardsApproved: qualityRow.cardsApproved,
+      approvalPercent: qualityRow.approvalPercent,
+      rejectedPostKyc: qualityRow.rejectedPostKyc,
+      rejectionPercent: qualityRow.rejectionPercent,
+    };
+    
+    return {
+      ...data,
+      totals: filteredTotals,
+    };
+  }, [data, qualityFilter]);
+
   const renderContent = () => {
-    if (isLoading || !data) {
+    if (isLoading || !filteredData) {
       return getSkeleton();
     }
 
@@ -64,14 +101,14 @@ function Index() {
         {(() => {
           switch (activeTab) {
             case 'full-view':
-              return <FullViewTab summaryRows={data.summaryRows} totals={data.totals} />;
+              return <FullViewTab summaryRows={filteredData.summaryRows} totals={filteredData.totals} />;
             case 'quality-view':
-              return <QualityViewTab qualityRows={data.qualityRows} />;
+              return <QualityViewTab qualityRows={filteredData.qualityRows} />;
             case 'mis-upload':
               return (
                 <MISUploadTab 
-                  currentUpload={data.currentMISUpload} 
-                  uploadHistory={data.misUploadHistory} 
+                  currentUpload={filteredData.currentMISUpload} 
+                  uploadHistory={filteredData.misUploadHistory} 
                   onViewDashboard={() => {
                     handleRefresh();
                     setActiveTab('full-view');
@@ -79,13 +116,13 @@ function Index() {
                 />
               );
             case 'data-freshness':
-              return <DataFreshnessTab freshnessRows={data.freshnessRows} uploadSummary={data.uploadSummary} />;
+              return <DataFreshnessTab freshnessRows={filteredData.freshnessRows} uploadSummary={filteredData.uploadSummary} />;
             case 'stpk-vkyc':
-              return <StpkVkycTab funnelMetrics={data.vkycFunnelMetrics} funnelByMonth={data.vkycFunnelByMonth} />;
+              return <StpkVkycTab funnelMetrics={filteredData.vkycFunnelMetrics} funnelByMonth={filteredData.vkycFunnelByMonth} />;
             case 'conflicts':
-              return <ConflictResolutionTab conflicts={data.conflicts} />;
+              return <ConflictResolutionTab conflicts={filteredData.conflicts} />;
             default:
-              return <FullViewTab summaryRows={data.summaryRows} totals={data.totals} />;
+              return <FullViewTab summaryRows={filteredData.summaryRows} totals={filteredData.totals} />;
           }
         })()}
       </Suspense>
@@ -143,6 +180,9 @@ function Index() {
               <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
               <span className="text-xs">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
             </Button>
+            {activeTab === 'full-view' && (
+              <QualityFilter value={qualityFilter} onChange={setQualityFilter} />
+            )}
             <DateRangeFilter dateRange={dateRange} onDateRangeChange={setDateRange} />
             <span className="px-2 py-0.5 bg-success/20 text-success rounded text-[10px] font-medium">LIVE</span>
             <span>Axis Bank</span>
