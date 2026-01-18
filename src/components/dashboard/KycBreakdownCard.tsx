@@ -44,8 +44,8 @@ export function KycBreakdownCard() {
         }
 
         // Compute breakdown by rule (priority order as per FINAL LOVABLE CODE spec)
-        // kyc_eligible: blaze_output = 'Reject' -> 'N', else 'Y'
-        // kyc_done (only for eligible): login_status IN (Login, Login 26) OR vkyc_status IN (Approved, Rejected) OR core_non_core = 'Non-Core'
+        // kyc_eligible: blaze_output starts with 'REJECT' -> 'N', else 'Y'
+        // kyc_done (only for eligible): login_status matches OR vkyc_status matches OR core_non_core = 'Non-Core'
         // kyc_pending: eligible AND NOT done (never subtract)
         
         let byLogin = 0;
@@ -54,8 +54,9 @@ export function KycBreakdownCard() {
         let kycPending = 0;
         let notEligible = 0;
 
-        const VALID_LOGIN = ['LOGIN', 'LOGIN 26'];
-        const VKYC_DONE = ['APPROVED', 'REJECTED'];
+        // Updated to match actual DB values
+        const VALID_LOGIN = ['LOGIN', 'LOGIN 26', 'IPA LOGIN', 'IPA 26 LOGIN'];
+        const VKYC_DONE = ['APPROVED', 'REJECTED', 'HARD_ACCEPT', 'HARD_REJECT'];
 
         allRecords.forEach(r => {
           const loginStatus = (r.login_status || '').toUpperCase().trim();
@@ -64,7 +65,8 @@ export function KycBreakdownCard() {
           const blazeOutput = (r.blaze_output || '').toUpperCase().trim();
 
           // Step 1: Determine kyc_eligible from blaze_output
-          const kycEligible = !(blazeOutput === 'REJECT' || blazeOutput === 'REJECTED');
+          // Any value starting with 'REJECT' is not eligible (REJECT, REJECT-CVID19, REJECT-1607, etc.)
+          const kycEligible = !blazeOutput.startsWith('REJECT');
 
           if (!kycEligible) {
             // Not eligible - excluded from KYC Done/Pending

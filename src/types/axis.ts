@@ -173,13 +173,15 @@ const CARD_APPROVED_OUTCOMES = ['APPROVED', 'DISBURSED', 'CARD DISPATCHED', 'SAN
 const AUTO_DECLINE_REASONS = ['IPA NON RESOLVED', 'TIME EXPIRED', 'AUTO DECLINE', 'AUTO-DECLINE'];
 
 // Valid login statuses that indicate KYC completion
-const VALID_LOGIN_STATUSES = ['LOGIN', 'LOGIN 26'];
+// Actual values in DB: 'IPA LOGIN', 'IPA 26 LOGIN'
+const VALID_LOGIN_STATUSES = ['LOGIN', 'LOGIN 26', 'IPA LOGIN', 'IPA 26 LOGIN'];
 
 // VKYC statuses that indicate VKYC is Done (reached final outcome)
-const VKYC_DONE_STATUSES = ['APPROVED', 'REJECTED'];
+// Actual values in DB: 'HARD_ACCEPT', 'HARD_REJECT'
+const VKYC_DONE_STATUSES = ['APPROVED', 'REJECTED', 'HARD_ACCEPT', 'HARD_REJECT'];
 
 // VKYC statuses that allow re-attempt
-const VKYC_REDO_ALLOWED_STATUSES = ['DROPPED', 'PENDING', ''];
+const VKYC_REDO_ALLOWED_STATUSES = ['DROPPED', 'PENDING', '', 'DROPOFF', 'INTIMATION'];
 
 /**
  * VKYC Done Flag
