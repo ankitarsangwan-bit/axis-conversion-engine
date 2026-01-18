@@ -196,19 +196,21 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
     .select('*')
     .limit(1000); // VKYC metrics are aggregated
 
-  // Updated KYC logic - Non-Core excluded
+  // Updated KYC logic with Final VKYC Reject
   // kyc_eligible: blaze_output starts with 'REJECT' -> Not Eligible
   // kyc_done: login_status matches OR vkyc_status matches
-  // kyc_pending: eligible AND NOT done
+  // final_vkyc_reject: HARD_REJECT + NON-CORE
+  // kyc_pending: eligible AND NOT done AND NOT final_vkyc_reject
   
   const VALID_LOGIN = ['LOGIN', 'LOGIN 26', 'IPA LOGIN', 'IPA 26 LOGIN'];
   const VKYC_DONE = ['APPROVED', 'REJECTED', 'HARD_ACCEPT', 'HARD_REJECT'];
 
-  // Process records with additive KYC logic (Non-Core excluded)
+  // Process records with additive KYC logic
   let totalApps = 0;
   let totalNotEligible = 0;
   let totalByLogin = 0;
   let totalByVkyc = 0;
+  let totalFinalVkycReject = 0;
   let totalKycPending = 0;
   let totalApproved = 0;
 
@@ -217,6 +219,7 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
     notEligible: number;
     byLogin: number;
     byVkyc: number;
+    finalVkycReject: number;
     kycPending: number;
     approved: number;
     rejectedPostKyc: number;
@@ -228,6 +231,7 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
     notEligible: number;
     byLogin: number;
     byVkyc: number;
+    finalVkycReject: number;
     kycPending: number;
     approved: number;
     rejectedPostKyc: number;
@@ -236,7 +240,7 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
   // Initialize quality groups
   ['Good', 'Average', 'Rejected'].forEach(q => {
     qualityGroups.set(q, {
-      total: 0, notEligible: 0, byLogin: 0, byVkyc: 0, kycPending: 0, approved: 0, rejectedPostKyc: 0
+      total: 0, notEligible: 0, byLogin: 0, byVkyc: 0, finalVkycReject: 0, kycPending: 0, approved: 0, rejectedPostKyc: 0
     });
   });
 
@@ -244,6 +248,7 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
     const month = r.month || 'Unknown';
     const loginStatus = (r.login_status || '').toUpperCase().trim();
     const vkycStatus = (r.vkyc_status || '').toUpperCase().trim();
+    const coreNonCore = (r.core_non_core || '').toUpperCase().trim();
     const blazeOutput = (r.blaze_output || '').toUpperCase().trim();
     const finalStatus = (r.final_status || '').toUpperCase().trim();
     const leadQuality = (r.lead_quality || 'Good').trim();
@@ -259,7 +264,7 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
     // Initialize month group if needed
     if (!monthGroups.has(month)) {
       monthGroups.set(month, {
-        total: 0, notEligible: 0, byLogin: 0, byVkyc: 0, kycPending: 0, approved: 0, rejectedPostKyc: 0
+        total: 0, notEligible: 0, byLogin: 0, byVkyc: 0, finalVkycReject: 0, kycPending: 0, approved: 0, rejectedPostKyc: 0
       });
     }
     const group = monthGroups.get(month)!;
@@ -288,7 +293,7 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
       qualityGroup.notEligible++;
       totalNotEligible++;
     } else {
-      // Step 2: For eligible records, determine kyc_done (priority order, Non-Core excluded)
+      // Step 2: For eligible records, determine kyc_done (priority order)
       if (VALID_LOGIN.includes(loginStatus)) {
         group.byLogin++;
         qualityGroup.byLogin++;
@@ -298,9 +303,16 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
           qualityGroup.rejectedPostKyc++;
         }
       } else if (VKYC_DONE.includes(vkycStatus)) {
-        group.byVkyc++;
-        qualityGroup.byVkyc++;
-        totalByVkyc++;
+        // Check if HARD_REJECT + NON-CORE -> Final VKYC Reject
+        if (vkycStatus === 'HARD_REJECT' && coreNonCore === 'NON-CORE') {
+          group.finalVkycReject++;
+          qualityGroup.finalVkycReject++;
+          totalFinalVkycReject++;
+        } else {
+          group.byVkyc++;
+          qualityGroup.byVkyc++;
+          totalByVkyc++;
+        }
         if (rejectedPostKyc) {
           group.rejectedPostKyc++;
           qualityGroup.rejectedPostKyc++;
@@ -318,7 +330,7 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
   const summaryRows: AxisSummaryRow[] = [];
   monthGroups.forEach((group, month) => {
     const eligible = group.total - group.notEligible;
-    const kycDone = group.byLogin + group.byVkyc;
+    const kycDone = group.byLogin + group.byVkyc + group.finalVkycReject;
     
     summaryRows.push({
       bank: 'Axis',
@@ -340,7 +352,7 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
   const qualityRows: QualitySummaryRow[] = [];
   qualityGroups.forEach((group, quality) => {
     const eligible = group.total - group.notEligible;
-    const kycDone = group.byLogin + group.byVkyc;
+    const kycDone = group.byLogin + group.byVkyc + group.finalVkycReject;
     
     qualityRows.push({
       quality: quality as 'Good' | 'Average' | 'Rejected',
@@ -357,7 +369,7 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
   });
 
   const totalEligible = totalApps - totalNotEligible;
-  const totalKycDone = totalByLogin + totalByVkyc;
+  const totalKycDone = totalByLogin + totalByVkyc + totalFinalVkycReject;
   const totalRejectedPostKyc = summaryRows.reduce((sum, r) => sum + r.rejectedPostKyc, 0);
 
   const totals: AxisSummaryRow = {

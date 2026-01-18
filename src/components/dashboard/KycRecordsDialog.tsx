@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
-export type KycCategory = 'not_eligible' | 'by_login' | 'by_vkyc' | 'kyc_pending';
+export type KycCategory = 'not_eligible' | 'by_login' | 'by_vkyc' | 'final_vkyc_reject' | 'kyc_pending';
 
 interface KycRecordsDialogProps {
   open: boolean;
@@ -33,6 +33,7 @@ const VKYC_DONE = ['APPROVED', 'REJECTED', 'HARD_ACCEPT', 'HARD_REJECT'];
 function categorizeRecord(r: MISRecord): KycCategory {
   const loginStatus = (r.login_status || '').toUpperCase().trim();
   const vkycStatus = (r.vkyc_status || '').toUpperCase().trim();
+  const coreNonCore = (r.core_non_core || '').toUpperCase().trim();
   const blazeOutput = (r.blaze_output || '').toUpperCase().trim();
 
   // Step 1: kyc_eligible from blaze_output (starts with 'REJECT' = N, else Y)
@@ -46,6 +47,10 @@ function categorizeRecord(r: MISRecord): KycCategory {
   if (VALID_LOGIN.includes(loginStatus)) {
     return 'by_login';
   } else if (VKYC_DONE.includes(vkycStatus)) {
+    // Check if HARD_REJECT + NON-CORE -> Final VKYC Reject
+    if (vkycStatus === 'HARD_REJECT' && coreNonCore === 'NON-CORE') {
+      return 'final_vkyc_reject';
+    }
     return 'by_vkyc';
   } else {
     // kyc_pending = eligible AND NOT done
