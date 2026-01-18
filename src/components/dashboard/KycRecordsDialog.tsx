@@ -6,7 +6,7 @@ import { Loader2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
-export type KycCategory = 'not_eligible' | 'by_login' | 'by_vkyc' | 'by_final_status' | 'by_non_core' | 'kyc_pending';
+export type KycCategory = 'not_eligible' | 'by_login' | 'by_vkyc' | 'by_non_core' | 'kyc_pending';
 
 interface KycRecordsDialogProps {
   open: boolean;
@@ -32,21 +32,25 @@ const VKYC_DONE = ['APPROVED', 'REJECTED'];
 function categorizeRecord(r: MISRecord): KycCategory {
   const loginStatus = (r.login_status || '').toUpperCase().trim();
   const vkycStatus = (r.vkyc_status || '').toUpperCase().trim();
-  const finalStatus = (r.final_status || '').toUpperCase().trim();
   const coreNonCore = (r.core_non_core || '').toUpperCase().trim();
   const blazeOutput = (r.blaze_output || '').toUpperCase().trim();
 
-  if (blazeOutput === 'REJECT' || blazeOutput === 'REJECTED') {
+  // Step 1: kyc_eligible from blaze_output (Reject = N, else Y)
+  const kycEligible = !(blazeOutput === 'REJECT' || blazeOutput === 'REJECTED');
+
+  if (!kycEligible) {
     return 'not_eligible';
-  } else if (VALID_LOGIN.includes(loginStatus)) {
+  }
+
+  // Step 2: For eligible records, determine kyc_done (priority order)
+  if (VALID_LOGIN.includes(loginStatus)) {
     return 'by_login';
   } else if (VKYC_DONE.includes(vkycStatus)) {
     return 'by_vkyc';
   } else if (coreNonCore === 'NON-CORE') {
     return 'by_non_core';
-  } else if (finalStatus !== '' && finalStatus !== 'IPA') {
-    return 'by_final_status';
   } else {
+    // kyc_pending = eligible AND NOT done
     return 'kyc_pending';
   }
 }
