@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { DateRange } from 'react-day-picker';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   AxisSummaryRow, 
@@ -45,7 +46,7 @@ interface DashboardData {
   vkycFunnelByMonth: Array<{ month: string } & VkycFunnelMetrics>;
 }
 
-export function useDashboardData() {
+export function useDashboardData(dateRange?: DateRange) {
   const [data, setData] = useState<DashboardData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +69,7 @@ export function useDashboardData() {
 
       // If database has data, compute from it; otherwise use sample data
       if (!recordsError && misRecords && misRecords.length > 0) {
-        const dashboardData = await computeDashboardFromDB();
+        const dashboardData = await computeDashboardFromDB(dateRange);
         setData(dashboardData);
       } else {
         // Use sample data as fallback
@@ -108,7 +109,7 @@ export function useDashboardData() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [dateRange]);
 
   useEffect(() => {
     fetchData();
@@ -137,7 +138,7 @@ function mapUploadFromDB(upload: any): MISUpload {
 }
 
 // Compute dashboard data from database records
-async function computeDashboardFromDB(): Promise<DashboardData> {
+async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardData> {
   // Fetch all records in batches to avoid Supabase 1000 row limit
   let allRecords: any[] = [];
   let from = 0;
@@ -145,10 +146,22 @@ async function computeDashboardFromDB(): Promise<DashboardData> {
   let hasMore = true;
 
   while (hasMore) {
-    const { data: batch, error } = await supabase
+    let query = supabase
       .from('mis_records')
-      .select('*')
-      .range(from, from + batchSize - 1);
+      .select('*');
+    
+    // Apply date filter if provided (filter by last_updated_date)
+    if (dateRange?.from) {
+      query = query.gte('last_updated_date', dateRange.from.toISOString());
+    }
+    if (dateRange?.to) {
+      // Add 1 day to include the end date
+      const endDate = new Date(dateRange.to);
+      endDate.setDate(endDate.getDate() + 1);
+      query = query.lt('last_updated_date', endDate.toISOString());
+    }
+    
+    const { data: batch, error } = await query.range(from, from + batchSize - 1);
 
     if (error) {
       console.error('Error fetching records batch:', error);
@@ -164,7 +177,7 @@ async function computeDashboardFromDB(): Promise<DashboardData> {
     }
   }
 
-  console.log(`Fetched ${allRecords.length} records from database`);
+  console.log(`Fetched ${allRecords.length} records from database${dateRange ? ' (filtered by date)' : ''}`);
   const records = allRecords;
 
   const { data: uploads } = await supabase
@@ -183,63 +196,108 @@ async function computeDashboardFromDB(): Promise<DashboardData> {
     .select('*')
     .limit(1000); // VKYC metrics are aggregated
 
-  // Process MIS records into dashboard format using stored computed fields
-  const processedRecords = (records || []).map((r: any) => ({
-    application_id: r.application_id,
-    month: r.month || 'Unknown',
-    blaze_output: r.blaze_output || '',
-    login_status: r.login_status,
-    final_status: r.final_status || '',
-    vkyc_status: r.vkyc_status || '',
-    core_non_core: r.core_non_core || '',
-    lead_quality: r.lead_quality || deriveLeadQuality(r.blaze_output || ''),
-    kyc_completed: r.kyc_completed ?? isKycCompleted(r.login_status, r.final_status || ''),
-    card_approved: isCardApproved(r.final_status || ''),
-    // Use stored values or compute from raw fields
-    applications: r.applications || 1,
-    dedupe_pass: r.dedupe_pass ?? (r.lead_quality !== 'Rejected' ? 1 : 0),
-    bureau_pass: r.bureau_pass ?? (r.lead_quality === 'Good' ? 1 : 0),
-    vkyc_pass: r.vkyc_pass ?? (r.kyc_completed ? 1 : 0),
-    disbursed: r.disbursed ?? (isCardApproved(r.final_status || '') ? 1 : 0),
-  }));
+  // Updated KYC logic matching FINAL LOVABLE CODE spec
+  // kyc_eligible: blaze_output starts with 'REJECT' -> Not Eligible
+  // kyc_done: login_status matches OR vkyc_status matches OR core_non_core = 'Non-Core'
+  // kyc_pending: eligible AND NOT done (never subtract)
+  
+  const VALID_LOGIN = ['LOGIN', 'LOGIN 26', 'IPA LOGIN', 'IPA 26 LOGIN'];
+  const VKYC_DONE = ['APPROVED', 'REJECTED', 'HARD_ACCEPT', 'HARD_REJECT'];
 
-  // Group by month for summary
-  const monthGroups = new Map<string, typeof processedRecords>();
-  processedRecords.forEach(r => {
-    const existing = monthGroups.get(r.month) || [];
-    existing.push(r);
-    monthGroups.set(r.month, existing);
+  // Process records with new additive KYC logic
+  let totalApps = 0;
+  let totalNotEligible = 0;
+  let totalByLogin = 0;
+  let totalByVkyc = 0;
+  let totalByNonCore = 0;
+  let totalKycPending = 0;
+  let totalApproved = 0;
+
+  const monthGroups = new Map<string, {
+    total: number;
+    notEligible: number;
+    byLogin: number;
+    byVkyc: number;
+    byNonCore: number;
+    kycPending: number;
+    approved: number;
+  }>();
+
+  (records || []).forEach((r: any) => {
+    const month = r.month || 'Unknown';
+    const loginStatus = (r.login_status || '').toUpperCase().trim();
+    const vkycStatus = (r.vkyc_status || '').toUpperCase().trim();
+    const coreNonCore = (r.core_non_core || '').toUpperCase().trim();
+    const blazeOutput = (r.blaze_output || '').toUpperCase().trim();
+    const finalStatus = (r.final_status || '').toUpperCase().trim();
+
+    // Initialize month group if needed
+    if (!monthGroups.has(month)) {
+      monthGroups.set(month, {
+        total: 0, notEligible: 0, byLogin: 0, byVkyc: 0, byNonCore: 0, kycPending: 0, approved: 0
+      });
+    }
+    const group = monthGroups.get(month)!;
+    
+    group.total++;
+    totalApps++;
+
+    // Check if card approved
+    const cardApproved = ['APPROVED', 'DISBURSED', 'CARD DISPATCHED', 'SANCTIONED'].includes(finalStatus);
+    if (cardApproved) {
+      group.approved++;
+      totalApproved++;
+    }
+
+    // Step 1: Determine kyc_eligible from blaze_output
+    const kycEligible = !blazeOutput.startsWith('REJECT');
+
+    if (!kycEligible) {
+      group.notEligible++;
+      totalNotEligible++;
+    } else {
+      // Step 2: For eligible records, determine kyc_done (priority order)
+      if (VALID_LOGIN.includes(loginStatus)) {
+        group.byLogin++;
+        totalByLogin++;
+      } else if (VKYC_DONE.includes(vkycStatus)) {
+        group.byVkyc++;
+        totalByVkyc++;
+      } else if (coreNonCore === 'NON-CORE') {
+        group.byNonCore++;
+        totalByNonCore++;
+      } else {
+        // kyc_pending = eligible AND NOT done
+        group.kycPending++;
+        totalKycPending++;
+      }
+    }
   });
 
+  // Build summary rows from month groups
   const summaryRows: AxisSummaryRow[] = [];
-  let totalApps = 0, totalEligible = 0, totalKycDone = 0, totalApproved = 0;
-
-  monthGroups.forEach((apps, month) => {
-    const total = apps.reduce((sum, a) => sum + a.applications, 0);
-    const eligible = apps.reduce((sum, a) => sum + a.dedupe_pass, 0);
-    const kycDone = apps.reduce((sum, a) => sum + a.vkyc_pass, 0);
-    const approved = apps.reduce((sum, a) => sum + a.disbursed, 0);
-
-    totalApps += total;
-    totalEligible += eligible;
-    totalKycDone += kycDone;
-    totalApproved += approved;
-
+  monthGroups.forEach((group, month) => {
+    const eligible = group.total - group.notEligible;
+    const kycDone = group.byLogin + group.byVkyc + group.byNonCore;
+    
     summaryRows.push({
       bank: 'Axis',
       month,
       quality: 'All',
-      totalApplications: total,
+      totalApplications: group.total,
       eligibleForKyc: eligible,
-      kycPending: eligible - kycDone,
+      kycPending: group.kycPending, // Direct count, NOT subtraction
       kycDone,
       kycConversionPercent: eligible > 0 ? Math.round((kycDone / eligible) * 1000) / 10 : 0,
-      cardsApproved: approved,
-      approvalPercent: kycDone > 0 ? Math.round((approved / kycDone) * 1000) / 10 : 0,
+      cardsApproved: group.approved,
+      approvalPercent: kycDone > 0 ? Math.round((group.approved / kycDone) * 1000) / 10 : 0,
       rejectedPostKyc: 0,
       rejectionPercent: 0,
     });
   });
+
+  const totalEligible = totalApps - totalNotEligible;
+  const totalKycDone = totalByLogin + totalByVkyc + totalByNonCore;
 
   const totals: AxisSummaryRow = {
     bank: 'Axis',
@@ -247,7 +305,7 @@ async function computeDashboardFromDB(): Promise<DashboardData> {
     quality: 'All',
     totalApplications: totalApps,
     eligibleForKyc: totalEligible,
-    kycPending: totalEligible - totalKycDone,
+    kycPending: totalKycPending, // Direct count, NOT subtraction
     kycDone: totalKycDone,
     kycConversionPercent: totalEligible > 0 ? Math.round((totalKycDone / totalEligible) * 1000) / 10 : 0,
     cardsApproved: totalApproved,
