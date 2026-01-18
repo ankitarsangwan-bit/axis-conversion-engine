@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { CheckCircle2, UserCheck, MapPin, Clock, Loader2, XCircle, ChevronRight } from 'lucide-react';
+import { CheckCircle2, UserCheck, Clock, Loader2, XCircle, ChevronRight, Ban } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { KycRecordsDialog, KycCategory } from './KycRecordsDialog';
@@ -8,6 +8,7 @@ import { KycRecordsDialog, KycCategory } from './KycRecordsDialog';
 interface KycBreakdown {
   byLogin: number;
   byVkyc: number;
+  finalVkycReject: number;
   totalKycDone: number;
   kycPending: number;
   notEligible: number;
@@ -44,11 +45,13 @@ export function KycBreakdownCard() {
 
         // Compute breakdown by rule (priority order)
         // kyc_eligible: blaze_output starts with 'REJECT' -> Not Eligible
-        // kyc_done (only for eligible): login_status matches OR vkyc_status matches
-        // kyc_pending: eligible AND NOT done
+        // kyc_done: login_status matches OR vkyc_status matches
+        // final_vkyc_reject: HARD_REJECT + NON-CORE (counted separately)
+        // kyc_pending: eligible AND NOT done AND NOT final_vkyc_reject
         
         let byLogin = 0;
         let byVkyc = 0;
+        let finalVkycReject = 0;
         let kycPending = 0;
         let notEligible = 0;
 
@@ -59,6 +62,7 @@ export function KycBreakdownCard() {
         allRecords.forEach(r => {
           const loginStatus = (r.login_status || '').toUpperCase().trim();
           const vkycStatus = (r.vkyc_status || '').toUpperCase().trim();
+          const coreNonCore = (r.core_non_core || '').toUpperCase().trim();
           const blazeOutput = (r.blaze_output || '').toUpperCase().trim();
 
           // Step 1: Determine kyc_eligible from blaze_output
@@ -71,7 +75,12 @@ export function KycBreakdownCard() {
             if (VALID_LOGIN.includes(loginStatus)) {
               byLogin++;
             } else if (VKYC_DONE.includes(vkycStatus)) {
-              byVkyc++;
+              // Check if HARD_REJECT + NON-CORE -> Final VKYC Reject
+              if (vkycStatus === 'HARD_REJECT' && coreNonCore === 'NON-CORE') {
+                finalVkycReject++;
+              } else {
+                byVkyc++;
+              }
             } else {
               // kyc_pending = eligible AND NOT done
               kycPending++;
@@ -79,11 +88,12 @@ export function KycBreakdownCard() {
           }
         });
 
-        const totalKycDone = byLogin + byVkyc;
+        const totalKycDone = byLogin + byVkyc + finalVkycReject;
 
         setBreakdown({
           byLogin,
           byVkyc,
+          finalVkycReject,
           totalKycDone,
           kycPending,
           notEligible,
@@ -133,6 +143,7 @@ export function KycBreakdownCard() {
     category: KycCategory;
     isNotEligible?: boolean;
     isPending?: boolean;
+    isFinalReject?: boolean;
   }[] = [
     {
       label: 'Not Eligible',
@@ -155,12 +166,22 @@ export function KycBreakdownCard() {
     },
     {
       label: 'By VKYC',
-      description: 'vkyc_status = Approved / Rejected / Hard Accept',
+      description: 'vkyc_status = Approved / Hard Accept / Hard Reject (Core)',
       count: breakdown.byVkyc,
       icon: CheckCircle2,
       color: 'text-info',
       bgColor: 'bg-info/10',
       category: 'by_vkyc',
+    },
+    {
+      label: 'Final VKYC Reject',
+      description: 'Hard Reject + Non-Core (no physical fallback)',
+      count: breakdown.finalVkycReject,
+      icon: Ban,
+      color: 'text-warning',
+      bgColor: 'bg-warning/10',
+      category: 'final_vkyc_reject',
+      isFinalReject: true,
     },
     {
       label: 'KYC Pending',
