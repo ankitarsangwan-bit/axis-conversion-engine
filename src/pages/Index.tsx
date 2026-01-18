@@ -30,8 +30,8 @@ function Index() {
     to: new Date(),
   });
 
-  // Use the dashboard data hook
-  const { data, isLoading, refresh } = useDashboardData();
+  // Use the dashboard data hook with date range filter
+  const { data, isLoading, refresh } = useDashboardData(dateRange);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Refresh handler
