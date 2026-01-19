@@ -16,6 +16,13 @@ import {
 } from '@/types/misUpload';
 import { supabase } from '@/integrations/supabase/client';
 import { saveMISUpload } from '@/services/misUploadService';
+import { 
+  calculateJourneyStage, 
+  isNewerOrEqual, 
+  selectBestRecord,
+  shouldUpdateRecord,
+  JourneyStage 
+} from '@/services/journeyStateMachine';
 
 const initialState: UploadState = {
   step: 'upload',
@@ -227,33 +234,60 @@ export function useMISUpload() {
         .map(m => [m.targetColumn!, m.sourceColumn])
     );
 
-    // Apply Type-1 overwrite logic: dedupe incoming by application_id, keep latest
-    const incomingMap = new Map<string, RawMISRow>();
+    // Apply Type-1 overwrite logic: dedupe incoming by application_id
+    // Use state machine to select best record (most advanced journey stage)
+    const incomingMap = new Map<string, RawMISRow[]>();
     const appIdSource = mappingLookup.get('application_id')!;
     const dateSource = mappingLookup.get('last_updated_date');
+    const finalStatusSource = mappingLookup.get('final_status');
+    const loginStatusSource = mappingLookup.get('login_status');
+    const vkycStatusSource = mappingLookup.get('vkyc_status');
+    const blazeOutputSource = mappingLookup.get('blaze_output');
 
+    // Group all rows by application_id (to handle duplicates)
     state.parsedFile.rows.forEach(row => {
       const appId = String(row[appIdSource] || '').trim();
       if (!appId) return;
 
-      const existing = incomingMap.get(appId);
-      if (!existing) {
-        incomingMap.set(appId, row);
-      } else if (dateSource) {
-        // Keep the one with latest date
-        const existingDate = new Date(String(existing[dateSource] || ''));
-        const newDate = new Date(String(row[dateSource] || ''));
-        if (newDate > existingDate) {
-          incomingMap.set(appId, row);
-        }
+      const existing = incomingMap.get(appId) || [];
+      existing.push(row);
+      incomingMap.set(appId, existing);
+    });
+
+    // Collapse duplicates: select best record per application_id
+    const deduplicatedIncoming = new Map<string, RawMISRow>();
+    let duplicatesCollapsed = 0;
+    
+    incomingMap.forEach((rows, appId) => {
+      if (rows.length > 1) {
+        duplicatesCollapsed += rows.length - 1;
+        // Convert to format expected by selectBestRecord
+        const normalizedRows = rows.map(row => ({
+          final_status: finalStatusSource ? String(row[finalStatusSource] || '') : null,
+          login_status: loginStatusSource ? String(row[loginStatusSource] || '') : null,
+          vkyc_status: vkycStatusSource ? String(row[vkycStatusSource] || '') : null,
+          blaze_output: blazeOutputSource ? String(row[blazeOutputSource] || '') : null,
+          last_updated_date: dateSource ? String(row[dateSource] || '') : null,
+          _originalRow: row,
+        }));
+        
+        const best = selectBestRecord(normalizedRows);
+        deduplicatedIncoming.set(appId, (best as any)._originalRow);
+      } else {
+        deduplicatedIncoming.set(appId, rows[0]);
       }
     });
 
+    if (duplicatesCollapsed > 0) {
+      console.log(`Collapsed ${duplicatesCollapsed} duplicate rows within file (kept most advanced state)`);
+    }
+
     const newRecords: PreviewRecord[] = [];
     const updatedRecords: PreviewRecord[] = [];
+    const skippedRecords: { appId: string; reason: string }[] = [];
     let unchangedCount = 0;
 
-    incomingMap.forEach((row, appId) => {
+    deduplicatedIncoming.forEach((row, appId) => {
       const newValues: Record<string, string | number | null> = {};
       
       mappingLookup.forEach((source, target) => {
@@ -263,12 +297,38 @@ export function useMISUpload() {
       const existing = currentDataMap.get(appId);
 
       if (!existing) {
+        // New record - always insert
         newRecords.push({
           application_id: appId,
           changeType: 'new',
           newValues,
         });
       } else {
+        // Existing record - apply state machine logic
+        const updateDecision = shouldUpdateRecord(
+          {
+            finalStatus: finalStatusSource ? String(row[finalStatusSource] || '') : null,
+            loginStatus: loginStatusSource ? String(row[loginStatusSource] || '') : null,
+            vkycStatus: vkycStatusSource ? String(row[vkycStatusSource] || '') : null,
+            blazeOutput: blazeOutputSource ? String(row[blazeOutputSource] || '') : null,
+            lastUpdatedDate: dateSource ? String(row[dateSource] || '') : null,
+          },
+          {
+            finalStatus: existing.final_status,
+            loginStatus: existing.login_status,
+            vkycStatus: existing.vkyc_status,
+            blazeOutput: existing.blaze_output,
+            lastUpdatedDate: existing.last_updated_date,
+          }
+        );
+
+        if (!updateDecision.shouldUpdate) {
+          // Skip this update - state machine rejected it
+          skippedRecords.push({ appId, reason: updateDecision.reason });
+          unchangedCount++;
+          return; // Skip to next iteration (forEach callback)
+        }
+
         // Compare values - compare all mapped fields
         const changedFields: string[] = [];
         const oldValues: Record<string, string | number | null> = {};
@@ -301,11 +361,26 @@ export function useMISUpload() {
       }
     });
 
+    if (skippedRecords.length > 0) {
+      console.log(`Skipped ${skippedRecords.length} records due to state machine constraints:`);
+      skippedRecords.slice(0, 10).forEach(({ appId, reason }) => {
+        console.log(`  - ${appId}: ${reason}`);
+      });
+      if (skippedRecords.length > 10) {
+        console.log(`  ... and ${skippedRecords.length - 10} more`);
+      }
+    }
+
     const changePreview: ChangePreview = {
       newRecords,
       updatedRecords,
       unchangedCount,
-      totalIncoming: incomingMap.size,
+      totalIncoming: deduplicatedIncoming.size,
+      skippedRecords: skippedRecords.map(({ appId, reason }) => ({
+        application_id: appId,
+        reason: reason.split(':')[0] || reason, // Extract just the type
+        details: reason,
+      })),
     };
 
     setState(prev => ({

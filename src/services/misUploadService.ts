@@ -10,6 +10,21 @@ import {
   normalizeCoreNonCore,
   normalizeToISODate
 } from '@/types/axis';
+import { 
+  calculateJourneyStage, 
+  shouldUpdateRecord,
+  JourneyStage 
+} from '@/services/journeyStateMachine';
+
+/**
+ * Track skipped updates for logging/debugging
+ */
+interface SkippedUpdate {
+  application_id: string;
+  reason: string;
+  incomingStage: JourneyStage;
+  existingStage: JourneyStage;
+}
 
 export async function saveMISUpload(
   fileName: string,
@@ -144,7 +159,10 @@ export async function saveMISUpload(
       }
     }
 
-    // Update existing records in BATCHES using upsert (much faster than individual updates)
+    // Update existing records in BATCHES using upsert
+    // NOTE: State machine validation (temporal guard, forward-only journey, terminal states)
+    // is enforced at the preview generation stage in useMISUpload.ts
+    // Records that reach this point have already passed all guards
     if (changePreview.updatedRecords.length > 0) {
       const batchSize = 500;
       const allConflicts: Array<{
