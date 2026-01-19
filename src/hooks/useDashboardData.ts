@@ -33,6 +33,13 @@ import {
   getVkycFunnelByMonth as getSampleVkycByMonth
 } from '@/data/sampleAxisData';
 
+interface MonthQualityData {
+  month: string;
+  quality: string;
+  apps: number;
+  contributionPercent: number;
+}
+
 interface DashboardData {
   summaryRows: AxisSummaryRow[];
   totals: AxisSummaryRow;
@@ -44,6 +51,7 @@ interface DashboardData {
   currentMISUpload: MISUpload | undefined;
   vkycFunnelMetrics: VkycFunnelMetrics;
   vkycFunnelByMonth: Array<{ month: string } & VkycFunnelMetrics>;
+  monthlyQualityData: MonthQualityData[];
 }
 
 export function useDashboardData(dateRange?: DateRange) {
@@ -88,6 +96,7 @@ export function useDashboardData(dateRange?: DateRange) {
             : getSampleCurrentUpload(),
           vkycFunnelMetrics: getSampleVkycMetrics(),
           vkycFunnelByMonth: getSampleVkycByMonth(),
+          monthlyQualityData: [],
         });
       }
     } catch (err) {
@@ -105,6 +114,7 @@ export function useDashboardData(dateRange?: DateRange) {
         currentMISUpload: getSampleCurrentUpload(),
         vkycFunnelMetrics: getSampleVkycMetrics(),
         vkycFunnelByMonth: getSampleVkycByMonth(),
+        monthlyQualityData: [],
       });
     } finally {
       setIsLoading(false);
@@ -244,6 +254,10 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
     });
   });
 
+  // Track month-quality combinations for monthly quality contribution data
+  const monthQualityCounts = new Map<string, Map<string, number>>();
+  const monthTotals = new Map<string, number>();
+
   (records || []).forEach((r: any) => {
     const month = r.month || 'Unknown';
     const loginStatus = (r.login_status || '').toUpperCase().trim();
@@ -260,6 +274,14 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
     } else if (leadQuality.toUpperCase() === 'REJECTED' || leadQuality === 'Rejected') {
       quality = 'Rejected';
     }
+
+    // Track month-quality counts for quality contribution analysis
+    if (!monthQualityCounts.has(month)) {
+      monthQualityCounts.set(month, new Map());
+    }
+    const qualityCountsForMonth = monthQualityCounts.get(month)!;
+    qualityCountsForMonth.set(quality, (qualityCountsForMonth.get(quality) || 0) + 1);
+    monthTotals.set(month, (monthTotals.get(month) || 0) + 1);
 
     // Initialize month group if needed
     if (!monthGroups.has(month)) {
@@ -422,6 +444,24 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
   // VKYC metrics from database or fallback
   const vkycFunnelMetrics = computeVkycMetrics(vkycData || []);
 
+  // Build monthly quality data for Quality Analysis tab
+  const monthlyQualityData: MonthQualityData[] = [];
+  monthQualityCounts.forEach((qualityCounts, month) => {
+    // Skip invalid months
+    if (month === 'Unknown' || month.includes('1899')) return;
+    
+    const monthTotal = monthTotals.get(month) || 1;
+    ['Good', 'Average', 'Rejected'].forEach(quality => {
+      const apps = qualityCounts.get(quality) || 0;
+      monthlyQualityData.push({
+        month,
+        quality,
+        apps,
+        contributionPercent: (apps / monthTotal) * 100,
+      });
+    });
+  });
+
   return {
     summaryRows: summaryRows.length > 0 ? summaryRows : getSampleSummary(),
     totals: summaryRows.length > 0 ? totals : getSampleTotals(),
@@ -438,6 +478,7 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
     currentMISUpload: currentMISUpload || getSampleCurrentUpload(),
     vkycFunnelMetrics,
     vkycFunnelByMonth: getSampleVkycByMonth(),
+    monthlyQualityData,
   };
 }
 

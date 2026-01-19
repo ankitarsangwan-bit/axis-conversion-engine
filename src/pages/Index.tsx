@@ -103,7 +103,7 @@ function Index() {
             case 'full-view':
               return <FullViewTab summaryRows={filteredData.summaryRows} totals={filteredData.totals} />;
             case 'quality-view':
-              return <QualityViewTab qualityRows={filteredData.qualityRows} />;
+              return <QualityViewTab qualityRows={filteredData.qualityRows} monthlyQualityData={filteredData.monthlyQualityData} />;
             case 'mis-upload':
               return (
                 <MISUploadTab 
