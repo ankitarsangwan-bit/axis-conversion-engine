@@ -65,6 +65,15 @@ export interface ChangePreview {
   updatedRecords: PreviewRecord[];
   unchangedCount: number;
   totalIncoming: number;
+  /** Records skipped due to state machine constraints (terminal state, backward transition, stale date) */
+  skippedRecords?: SkippedRecord[];
+}
+
+export interface SkippedRecord {
+  application_id: string;
+  reason: string;
+  /** Human-readable description of why update was rejected */
+  details?: string;
 }
 
 export interface PreviewRecord {

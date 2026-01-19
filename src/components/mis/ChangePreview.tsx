@@ -1,4 +1,4 @@
-import { Plus, RefreshCw, Minus, ArrowRight, CheckCircle2 } from 'lucide-react';
+import { Plus, RefreshCw, Minus, ArrowRight, CheckCircle2, ShieldX, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -14,17 +14,71 @@ interface ChangePreviewProps {
 }
 
 export function ChangePreview({ changePreview, onApply, onBack, isProcessing }: ChangePreviewProps) {
-  const { newRecords, updatedRecords, unchangedCount, totalIncoming } = changePreview;
+  const { newRecords, updatedRecords, unchangedCount, totalIncoming, skippedRecords = [] } = changePreview;
 
   return (
     <div className="space-y-4">
       {/* Summary KPIs */}
-      <div className="data-grid grid-cols-2 md:grid-cols-4">
+      <div className="data-grid grid-cols-2 md:grid-cols-5">
         <KpiCard label="Total Incoming" value={totalIncoming} />
         <KpiCard label="New Records" value={newRecords.length} valueColor="success" />
         <KpiCard label="Updates" value={updatedRecords.length} valueColor="info" />
         <KpiCard label="Unchanged" value={unchangedCount} />
+        {skippedRecords.length > 0 && (
+          <KpiCard label="Skipped (Guards)" value={skippedRecords.length} valueColor="warning" />
+        )}
       </div>
+
+      {/* Skipped Records (State Machine Guards) */}
+      {skippedRecords.length > 0 && (
+        <Card className="border-warning/30">
+          <CardHeader className="compact-card-header">
+            <CardTitle className="compact-card-title flex items-center gap-2">
+              <ShieldX className="w-4 h-4 text-warning" />
+              Skipped Records ({skippedRecords.length})
+            </CardTitle>
+            <CardDescription className="text-xs mt-0.5">
+              Updates rejected by state machine guards (terminal state, backward transition, or stale date)
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="overflow-x-auto max-h-48">
+              <table className="professional-table">
+                <thead>
+                  <tr>
+                    <th>Application ID</th>
+                    <th>Guard</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {skippedRecords.slice(0, 10).map((record) => (
+                    <tr key={record.application_id}>
+                      <td className="font-mono text-xs">{record.application_id}</td>
+                      <td>
+                        <Badge className="text-[9px] bg-warning/20 text-warning border-0">
+                          {record.reason.includes('terminal') ? 'Terminal State' :
+                           record.reason.includes('Backward') ? 'Backward Transition' :
+                           record.reason.includes('older') || record.reason.includes('Stale') ? 'Stale Date' :
+                           'State Guard'}
+                        </Badge>
+                      </td>
+                      <td className="text-xs text-muted-foreground max-w-xs truncate" title={record.details}>
+                        {record.details || record.reason}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {skippedRecords.length > 10 && (
+                <div className="p-2 text-center text-xs text-muted-foreground border-t">
+                  +{skippedRecords.length - 10} more skipped records
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* New Records */}
       {newRecords.length > 0 && (
@@ -81,7 +135,7 @@ export function ChangePreview({ changePreview, onApply, onBack, isProcessing }: 
               Updated Records ({updatedRecords.length})
             </CardTitle>
             <CardDescription className="text-xs mt-0.5">
-              Existing records with changed values (Type-1 overwrite)
+              Existing records with changed values (forward-only progression)
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
@@ -156,18 +210,30 @@ export function ChangePreview({ changePreview, onApply, onBack, isProcessing }: 
           <CardContent className="flex flex-col items-center justify-center py-8">
             <CheckCircle2 className="w-10 h-10 text-muted-foreground mb-3" />
             <p className="text-sm font-medium">No changes detected</p>
-            <p className="text-xs text-muted-foreground">All {unchangedCount} records are identical to existing data</p>
+            <p className="text-xs text-muted-foreground">
+              All {unchangedCount} records are identical or blocked by state machine guards
+            </p>
           </CardContent>
         </Card>
       )}
 
-      {/* Overwrite Logic Note */}
-      <div className="p-3 bg-accent rounded-md text-xs">
-        <p className="font-medium mb-1">Type-1 Overwrite Logic</p>
-        <p className="text-muted-foreground">
-          For each <code className="px-1 bg-muted rounded">application_id</code>, only the latest record 
-          (by <code className="px-1 bg-muted rounded">last_updated_date</code>) is kept. This is not history tracking—current state overwrites previous.
-        </p>
+      {/* State Machine Logic Note */}
+      <div className="p-3 bg-accent rounded-md text-xs space-y-2">
+        <p className="font-medium">State-Aware Type-1 SCD (Forward-Only Journey)</p>
+        <div className="text-muted-foreground space-y-1">
+          <p className="flex items-center gap-2">
+            <span className="w-2 h-2 bg-success rounded-full"></span>
+            <strong>Temporal Guard:</strong> Only accept if <code className="px-1 bg-muted rounded">incoming.date ≥ existing.date</code>
+          </p>
+          <p className="flex items-center gap-2">
+            <span className="w-2 h-2 bg-info rounded-full"></span>
+            <strong>Stage Guard:</strong> Journey can only move <em>forward</em> (higher stage rank)
+          </p>
+          <p className="flex items-center gap-2">
+            <span className="w-2 h-2 bg-warning rounded-full"></span>
+            <strong>Terminal Guard:</strong> Approved/Rejected/Disbursed are <em>immutable</em>
+          </p>
+        </div>
       </div>
 
       {/* Actions */}
