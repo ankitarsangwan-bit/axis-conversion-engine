@@ -15,35 +15,25 @@
 import { normalizeToISODate } from '@/types/axis';
 
 /**
- * Journey stages in order of progression
+ * Journey stages in exact rank order (per business rules)
  * Higher rank = more advanced in journey
+ * 
+ * Rank 1: Lead Created / IPA
+ * Rank 2: KYC Eligible
+ * Rank 3: VKYC Attempted
+ * Rank 4: KYC Done
+ * Rank 5: Underwriting (all final_status except Approved/Declined)
+ * Rank 6: Approved (TERMINAL)
+ * Rank 7: Final Reject (TERMINAL)
  */
 export enum JourneyStage {
-  // Pre-KYC stages
-  NEW = 0,
-  IPA = 10,
-  DEDUPE_PASS = 20,
-  BUREAU_PASS = 30,
-  
-  // KYC stages
-  VKYC_ELIGIBLE = 40,
-  VKYC_INITIATED = 50,
-  VKYC_ATTEMPTED = 55,
-  VKYC_REJECTED = 60,   // VKYC rejected but can still do physical
-  VKYC_APPROVED = 65,   // VKYC approved
-  LOGIN = 70,           // Physical/login achieved
-  
-  // Post-KYC stages
-  UNDERWRITING = 80,
-  SANCTIONED = 85,
-  
-  // Terminal states (cannot be changed once reached)
-  APPROVED = 90,
-  DISBURSED = 95,
-  CARD_DISPATCHED = 96,
-  
-  // Terminal rejection (cannot be changed)
-  FINAL_REJECT = 100,
+  LEAD_CREATED_IPA = 1,    // Rank 1: Lead Created / IPA
+  KYC_ELIGIBLE = 2,        // Rank 2: KYC Eligible (blaze_output != Reject)
+  VKYC_ATTEMPTED = 3,      // Rank 3: VKYC Attempted
+  KYC_DONE = 4,            // Rank 4: KYC Done (login achieved or VKYC completed)
+  UNDERWRITING = 5,        // Rank 5: All final_status except Approved/Declined
+  APPROVED = 6,            // Rank 6: Approved (TERMINAL)
+  FINAL_REJECT = 7,        // Rank 7: Final Reject (TERMINAL)
 }
 
 /**
@@ -52,10 +42,23 @@ export enum JourneyStage {
  */
 const TERMINAL_STAGES: JourneyStage[] = [
   JourneyStage.APPROVED,
-  JourneyStage.DISBURSED,
-  JourneyStage.CARD_DISPATCHED,
   JourneyStage.FINAL_REJECT,
 ];
+
+// Valid login statuses that indicate KYC completion
+const VALID_LOGIN_STATUSES = ['LOGIN', 'LOGIN 26', 'IPA LOGIN', 'IPA 26 LOGIN'];
+
+// VKYC statuses that indicate VKYC attempt completed
+const VKYC_ATTEMPTED_STATUSES = ['APPROVED', 'REJECTED', 'HARD_ACCEPT', 'HARD_REJECT', 'ATTEMPTED', 'IN_PROGRESS'];
+
+// VKYC statuses that indicate final outcome (for KYC Done)
+const VKYC_DONE_STATUSES = ['APPROVED', 'REJECTED', 'HARD_ACCEPT', 'HARD_REJECT'];
+
+// Approved outcomes
+const APPROVED_STATUSES = ['APPROVED', 'DISBURSED', 'CARD DISPATCHED', 'SANCTIONED'];
+
+// Rejected outcomes
+const REJECTED_STATUSES = ['REJECTED', 'DECLINED'];
 
 /**
  * Calculate the journey stage (rank) from application status fields
@@ -71,74 +74,49 @@ export function calculateJourneyStage(
   const normalizedVkyc = (vkycStatus || '').toUpperCase().trim();
   const normalizedBlaze = (blazeOutput || '').toUpperCase().trim();
   
-  // Check terminal states first
-  if (normalizedFinal.includes('DISBURSED')) {
-    return JourneyStage.DISBURSED;
-  }
-  if (normalizedFinal.includes('CARD DISPATCH')) {
-    return JourneyStage.CARD_DISPATCHED;
-  }
-  if (normalizedFinal === 'APPROVED' || normalizedFinal.includes('APPROVED')) {
-    return JourneyStage.APPROVED;
-  }
-  if (normalizedFinal === 'REJECTED' || normalizedFinal.includes('REJECTED') || normalizedFinal === 'DECLINED') {
-    // Only count as final reject if we've passed the KYC stage
-    // Check if KYC was attempted
-    const hasLogin = normalizedLogin.includes('LOGIN');
-    const hasVkycOutcome = normalizedVkyc === 'APPROVED' || normalizedVkyc === 'REJECTED' || 
-                           normalizedVkyc === 'HARD_ACCEPT' || normalizedVkyc === 'HARD_REJECT';
-    if (hasLogin || hasVkycOutcome) {
+  // Rank 7: Final Reject (TERMINAL)
+  if (REJECTED_STATUSES.some(s => normalizedFinal.includes(s))) {
+    // Only count as final reject if KYC was done
+    const hasLogin = VALID_LOGIN_STATUSES.some(s => normalizedLogin.includes(s));
+    const hasVkycDone = VKYC_DONE_STATUSES.includes(normalizedVkyc);
+    if (hasLogin || hasVkycDone) {
       return JourneyStage.FINAL_REJECT;
     }
   }
   
-  // Check post-KYC stages
-  if (normalizedFinal === 'SANCTIONED' || normalizedFinal.includes('SANCTION')) {
-    return JourneyStage.SANCTIONED;
+  // Rank 6: Approved (TERMINAL)
+  if (APPROVED_STATUSES.some(s => normalizedFinal.includes(s))) {
+    return JourneyStage.APPROVED;
   }
-  if (normalizedFinal === 'LOGGED' || normalizedFinal.includes('UNDERWRITING')) {
+  
+  // Rank 5: Underwriting (all final_status except Approved/Declined/IPA/empty)
+  if (normalizedFinal !== '' && 
+      normalizedFinal !== 'IPA' && 
+      !APPROVED_STATUSES.some(s => normalizedFinal.includes(s)) &&
+      !REJECTED_STATUSES.some(s => normalizedFinal.includes(s))) {
     return JourneyStage.UNDERWRITING;
   }
   
-  // Check KYC stages - Login
-  if (normalizedLogin.includes('LOGIN')) {
-    return JourneyStage.LOGIN;
+  // Rank 4: KYC Done (login achieved OR VKYC final outcome)
+  const hasLogin = VALID_LOGIN_STATUSES.some(s => normalizedLogin.includes(s));
+  const hasVkycDone = VKYC_DONE_STATUSES.includes(normalizedVkyc);
+  if (hasLogin || hasVkycDone) {
+    return JourneyStage.KYC_DONE;
   }
   
-  // Check VKYC stages
-  if (normalizedVkyc === 'APPROVED' || normalizedVkyc === 'HARD_ACCEPT') {
-    return JourneyStage.VKYC_APPROVED;
-  }
-  if (normalizedVkyc === 'REJECTED' || normalizedVkyc === 'HARD_REJECT') {
-    return JourneyStage.VKYC_REJECTED;
-  }
-  if (normalizedVkyc === 'ATTEMPTED' || normalizedVkyc === 'IN_PROGRESS') {
+  // Rank 3: VKYC Attempted (any VKYC activity)
+  if (VKYC_ATTEMPTED_STATUSES.includes(normalizedVkyc) || 
+      (normalizedVkyc !== '' && normalizedVkyc !== 'NOT_ELIGIBLE' && normalizedVkyc !== 'DROPOFF' && normalizedVkyc !== 'DROPPED')) {
     return JourneyStage.VKYC_ATTEMPTED;
   }
-  if (normalizedVkyc === 'INITIATED' || normalizedVkyc === 'PENDING') {
-    return JourneyStage.VKYC_INITIATED;
-  }
-  if (normalizedVkyc !== '' && normalizedVkyc !== 'NOT_ELIGIBLE' && normalizedVkyc !== 'DROPOFF' && normalizedVkyc !== 'DROPPED') {
-    return JourneyStage.VKYC_ELIGIBLE;
+  
+  // Rank 2: KYC Eligible (blaze_output != Reject)
+  if (normalizedBlaze !== 'REJECT') {
+    return JourneyStage.KYC_ELIGIBLE;
   }
   
-  // Pre-KYC stages based on blaze output
-  if (normalizedBlaze === 'STPK') {
-    return JourneyStage.BUREAU_PASS;
-  }
-  if (normalizedBlaze === 'STPT' || normalizedBlaze === 'STPI') {
-    return JourneyStage.DEDUPE_PASS;
-  }
-  if (normalizedBlaze === 'REJECT') {
-    return JourneyStage.DEDUPE_PASS; // Rejected at blaze but still progressed from IPA
-  }
-  
-  // Check IPA status
-  if (normalizedFinal === 'IPA') {
-    return JourneyStage.IPA;
-  }
-  
-  return JourneyStage.NEW;
+  // Rank 1: Lead Created / IPA (default, or Reject leads)
+  return JourneyStage.LEAD_CREATED_IPA;
 }
 
 /**
