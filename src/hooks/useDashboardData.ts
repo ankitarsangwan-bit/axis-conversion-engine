@@ -147,6 +147,23 @@ function mapUploadFromDB(upload: any): MISUpload {
   };
 }
 
+// Helper to parse month string like "Nov 2025" to a Date (first day of month)
+function parseMonthString(monthStr: string): Date | null {
+  const parts = monthStr.split(' ');
+  if (parts.length !== 2) return null;
+  
+  const monthNames: Record<string, number> = {
+    'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+    'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+  };
+  
+  const monthNum = monthNames[parts[0]];
+  const year = parseInt(parts[1], 10);
+  
+  if (monthNum === undefined || isNaN(year)) return null;
+  return new Date(year, monthNum, 1);
+}
+
 // Compute dashboard data from database records
 async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardData> {
   // Fetch all records in batches to avoid Supabase 1000 row limit
@@ -156,21 +173,11 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
   let hasMore = true;
 
   while (hasMore) {
-    let query = supabase
+    const query = supabase
       .from('mis_records')
       .select('*');
     
-    // Apply date filter if provided (filter by last_updated_date)
-    if (dateRange?.from) {
-      query = query.gte('last_updated_date', dateRange.from.toISOString());
-    }
-    if (dateRange?.to) {
-      // Add 1 day to include the end date
-      const endDate = new Date(dateRange.to);
-      endDate.setDate(endDate.getDate() + 1);
-      query = query.lt('last_updated_date', endDate.toISOString());
-    }
-    
+    // Note: We'll filter by month column in-memory since it's a text format like "Nov 2025"
     const { data: batch, error } = await query.range(from, from + batchSize - 1);
 
     if (error) {
@@ -186,8 +193,24 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
       hasMore = false;
     }
   }
+  
+  // Filter records by date range based on month column
+  if (dateRange?.from || dateRange?.to) {
+    allRecords = allRecords.filter(r => {
+      const recordMonth = parseMonthString(r.month);
+      if (!recordMonth) return false; // Skip invalid months like "Dec 1899"
+      
+      // Create end of month for comparison
+      const recordMonthEnd = new Date(recordMonth.getFullYear(), recordMonth.getMonth() + 1, 0);
+      
+      if (dateRange.from && recordMonthEnd < dateRange.from) return false;
+      if (dateRange.to && recordMonth > dateRange.to) return false;
+      
+      return true;
+    });
+  }
 
-  console.log(`Fetched ${allRecords.length} records from database${dateRange ? ' (filtered by date)' : ''}`);
+  console.log(`Fetched ${allRecords.length} records from database${dateRange ? ' (filtered by month)' : ''}`);
   const records = allRecords;
 
   const { data: uploads } = await supabase
