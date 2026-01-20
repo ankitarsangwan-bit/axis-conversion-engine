@@ -147,37 +147,36 @@ function mapUploadFromDB(upload: any): MISUpload {
   };
 }
 
-// Helper to parse month string like "Nov 2025" to a Date (first day of month)
-function parseMonthString(monthStr: string): Date | null {
-  const parts = monthStr.split(' ');
-  if (parts.length !== 2) return null;
-  
-  const monthNames: Record<string, number> = {
-    'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
-    'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
-  };
-  
-  const monthNum = monthNames[parts[0]];
-  const year = parseInt(parts[1], 10);
-  
-  if (monthNum === undefined || isNaN(year)) return null;
-  return new Date(year, monthNum, 1);
+// Helper to format date to "Mon YYYY" string
+function formatMonthYear(date: Date): string {
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
 }
 
 // Compute dashboard data from database records
 async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardData> {
-  // Fetch all records in batches to avoid Supabase 1000 row limit
+  // Fetch records with date filtering on created_at (application date)
   let allRecords: any[] = [];
   let from = 0;
   const batchSize = 1000;
   let hasMore = true;
 
   while (hasMore) {
-    const query = supabase
+    let query = supabase
       .from('mis_records')
       .select('*');
     
-    // Note: We'll filter by month column in-memory since it's a text format like "Nov 2025"
+    // Filter by created_at (application date) - this is the fixed rule for all banks
+    if (dateRange?.from) {
+      query = query.gte('created_at', dateRange.from.toISOString());
+    }
+    if (dateRange?.to) {
+      // Add 1 day to include the end date
+      const endDate = new Date(dateRange.to);
+      endDate.setDate(endDate.getDate() + 1);
+      query = query.lt('created_at', endDate.toISOString());
+    }
+    
     const { data: batch, error } = await query.range(from, from + batchSize - 1);
 
     if (error) {
@@ -193,24 +192,8 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
       hasMore = false;
     }
   }
-  
-  // Filter records by date range based on month column
-  if (dateRange?.from || dateRange?.to) {
-    allRecords = allRecords.filter(r => {
-      const recordMonth = parseMonthString(r.month);
-      if (!recordMonth) return false; // Skip invalid months like "Dec 1899"
-      
-      // Create end of month for comparison
-      const recordMonthEnd = new Date(recordMonth.getFullYear(), recordMonth.getMonth() + 1, 0);
-      
-      if (dateRange.from && recordMonthEnd < dateRange.from) return false;
-      if (dateRange.to && recordMonth > dateRange.to) return false;
-      
-      return true;
-    });
-  }
 
-  console.log(`Fetched ${allRecords.length} records from database${dateRange ? ' (filtered by month)' : ''}`);
+  console.log(`Fetched ${allRecords.length} records from database${dateRange ? ' (filtered by created_at)' : ''}`);
   const records = allRecords;
 
   const { data: uploads } = await supabase
@@ -282,7 +265,9 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
   const monthTotals = new Map<string, number>();
 
   (records || []).forEach((r: any) => {
-    const month = r.month || 'Unknown';
+    // Derive month from created_at (application date) - fixed rule for all banks
+    const appDate = r.created_at ? new Date(r.created_at) : null;
+    const month = appDate && !isNaN(appDate.getTime()) ? formatMonthYear(appDate) : 'Unknown';
     const loginStatus = (r.login_status || '').toUpperCase().trim();
     const vkycStatus = (r.vkyc_status || '').toUpperCase().trim();
     const coreNonCore = (r.core_non_core || '').toUpperCase().trim();
