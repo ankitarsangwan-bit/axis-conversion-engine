@@ -288,15 +288,16 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
     const coreNonCore = (r.core_non_core || '').toUpperCase().trim();
     const blazeOutput = (r.blaze_output || '').toUpperCase().trim();
     const finalStatus = (r.final_status || '').toUpperCase().trim();
-    const leadQuality = (r.lead_quality || 'Good').trim();
 
-    // Normalize lead_quality to Good/Average/Rejected
+    // Quality is ONLY derived from blaze_output (frozen at lead generation)
+    // REJECT* -> Rejected, STPK/ACCEPT/BQS_MATCH -> Good, STPT/STPI/REFER* -> Average
     let quality = 'Good';
-    if (leadQuality.toUpperCase() === 'AVERAGE' || leadQuality === 'Average') {
-      quality = 'Average';
-    } else if (leadQuality.toUpperCase() === 'REJECTED' || leadQuality === 'Rejected') {
+    if (blazeOutput.startsWith('REJECT')) {
       quality = 'Rejected';
+    } else if (['STPT', 'STPI'].includes(blazeOutput) || blazeOutput.startsWith('REFER')) {
+      quality = 'Average';
     }
+    // STPK, ACCEPT, BQS_MATCH remain as "Good"
 
     // Track month-quality counts for quality contribution analysis
     if (!monthQualityCounts.has(month)) {
