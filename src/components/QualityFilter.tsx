@@ -6,7 +6,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-export type QualityLevel = 'all' | 'Good' | 'Average' | 'Rejected';
+// 🔒 LOCKED: Quality levels derived ONLY from blaze_output
+export type QualityLevel = 'all' | 'Good' | 'Average' | 'Rejected' | 'Blank';
 
 interface QualityFilterProps {
   value: QualityLevel;
@@ -16,7 +17,7 @@ interface QualityFilterProps {
 export function QualityFilter({ value, onChange }: QualityFilterProps) {
   return (
     <Select value={value} onValueChange={(v) => onChange(v as QualityLevel)}>
-      <SelectTrigger className="h-7 w-[120px] text-xs">
+      <SelectTrigger className="h-7 w-[130px] text-xs">
         <SelectValue placeholder="All Quality" />
       </SelectTrigger>
       <SelectContent>
@@ -24,6 +25,7 @@ export function QualityFilter({ value, onChange }: QualityFilterProps) {
         <SelectItem value="Good">Good</SelectItem>
         <SelectItem value="Average">Average</SelectItem>
         <SelectItem value="Rejected">Rejected</SelectItem>
+        <SelectItem value="Blank">Blank</SelectItem>
       </SelectContent>
     </Select>
   );

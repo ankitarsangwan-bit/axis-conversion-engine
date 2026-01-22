@@ -11,7 +11,7 @@ interface KpiCardProps {
   delta?: number;
   deltaLabel?: string;
   sparklineData?: SparklineData[];
-  valueColor?: 'default' | 'success' | 'warning' | 'destructive' | 'info';
+  valueColor?: 'default' | 'success' | 'warning' | 'destructive' | 'info' | 'muted';
   className?: string;
 }
 
@@ -63,6 +63,7 @@ export function KpiCard({
     warning: 'text-warning',
     destructive: 'text-destructive',
     info: 'text-info',
+    muted: 'text-muted-foreground',
   }[valueColor];
 
   const getDeltaIcon = () => {

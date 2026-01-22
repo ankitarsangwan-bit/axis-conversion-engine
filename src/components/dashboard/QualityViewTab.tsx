@@ -29,15 +29,17 @@ export function QualityViewTab({ qualityRows, monthlyQualityData = [] }: Quality
       .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
   }, [monthlyQualityData]);
 
-  // Calculate overall contribution percentages
+  // Calculate overall contribution percentages (4 buckets: Good, Average, Rejected, Blank)
   const totalApps = qualityRows.reduce((sum, r) => sum + r.totalApplications, 0);
   const goodApps = qualityRows.find(r => r.quality === 'Good')?.totalApplications || 0;
   const avgApps = qualityRows.find(r => r.quality === 'Average')?.totalApplications || 0;
   const rejApps = qualityRows.find(r => r.quality === 'Rejected')?.totalApplications || 0;
+  const blankApps = qualityRows.find(r => r.quality === 'Blank')?.totalApplications || 0;
 
   const goodContribution = totalApps > 0 ? (goodApps / totalApps) * 100 : 0;
   const avgContribution = totalApps > 0 ? (avgApps / totalApps) * 100 : 0;
   const rejContribution = totalApps > 0 ? (rejApps / totalApps) * 100 : 0;
+  const blankContribution = totalApps > 0 ? (blankApps / totalApps) * 100 : 0;
 
   // Prepare month-wise export data
   const monthlyExportData = monthlyQualityData.map(row => ({
@@ -51,25 +53,30 @@ export function QualityViewTab({ qualityRows, monthlyQualityData = [] }: Quality
 
   return (
     <div className="space-y-4">
-      {/* Quality Contribution KPI Cards */}
-      <div className="data-grid grid-cols-4">
+      {/* Quality Contribution KPI Cards - 4 buckets: Good, Average, Rejected, Blank */}
+      <div className="data-grid grid-cols-5">
         <KpiCard 
-          label={`Good Quality (${goodApps.toLocaleString()} apps)`}
+          label={`Good (${goodApps.toLocaleString()} apps)`}
           value={formatPercent(goodContribution)}
           valueColor="success"
         />
         <KpiCard 
-          label={`Average Quality (${avgApps.toLocaleString()} apps)`}
+          label={`Average (${avgApps.toLocaleString()} apps)`}
           value={formatPercent(avgContribution)}
           valueColor="warning"
         />
         <KpiCard 
-          label={`Rejected Quality (${rejApps.toLocaleString()} apps)`}
+          label={`Rejected (${rejApps.toLocaleString()} apps)`}
           value={formatPercent(rejContribution)}
           valueColor="destructive"
         />
         <KpiCard 
-          label="Total Applications (Denominator)"
+          label={`Blank (${blankApps.toLocaleString()} apps)`}
+          value={formatPercent(blankContribution)}
+          valueColor="muted"
+        />
+        <KpiCard 
+          label="Total Applications"
           value={totalApps.toLocaleString()}
           valueColor="info"
         />
@@ -97,12 +104,14 @@ export function QualityViewTab({ qualityRows, monthlyQualityData = [] }: Quality
                 <thead>
                   <tr>
                     <th>Month</th>
-                    <th className="text-right">Good Apps</th>
+                    <th className="text-right">Good</th>
                     <th className="text-right">Good %</th>
-                    <th className="text-right">Avg Apps</th>
+                    <th className="text-right">Avg</th>
                     <th className="text-right">Avg %</th>
-                    <th className="text-right">Rej Apps</th>
+                    <th className="text-right">Rej</th>
                     <th className="text-right">Rej %</th>
+                    <th className="text-right">Blank</th>
+                    <th className="text-right">Blank %</th>
                     <th className="text-right">Total</th>
                   </tr>
                 </thead>
@@ -111,8 +120,9 @@ export function QualityViewTab({ qualityRows, monthlyQualityData = [] }: Quality
                     const goodData = monthlyQualityData.find(d => d.month === month && d.quality === 'Good');
                     const avgData = monthlyQualityData.find(d => d.month === month && d.quality === 'Average');
                     const rejData = monthlyQualityData.find(d => d.month === month && d.quality === 'Rejected');
+                    const blankData = monthlyQualityData.find(d => d.month === month && d.quality === 'Blank');
                     
-                    const monthTotal = (goodData?.apps || 0) + (avgData?.apps || 0) + (rejData?.apps || 0);
+                    const monthTotal = (goodData?.apps || 0) + (avgData?.apps || 0) + (rejData?.apps || 0) + (blankData?.apps || 0);
                     
                     return (
                       <tr key={month}>
@@ -123,6 +133,8 @@ export function QualityViewTab({ qualityRows, monthlyQualityData = [] }: Quality
                         <td className="text-right tabular-nums font-semibold text-warning">{formatPercent(avgData?.contributionPercent || 0)}</td>
                         <td className="text-right tabular-nums text-destructive">{(rejData?.apps || 0).toLocaleString()}</td>
                         <td className="text-right tabular-nums font-semibold text-destructive">{formatPercent(rejData?.contributionPercent || 0)}</td>
+                        <td className="text-right tabular-nums text-muted-foreground">{(blankData?.apps || 0).toLocaleString()}</td>
+                        <td className="text-right tabular-nums font-semibold text-muted-foreground">{formatPercent(blankData?.contributionPercent || 0)}</td>
                         <td className="text-right tabular-nums font-medium">{monthTotal.toLocaleString()}</td>
                       </tr>
                     );
