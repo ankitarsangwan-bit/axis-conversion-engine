@@ -253,8 +253,8 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
     rejectedPostKyc: number;
   }>();
   
-  // Initialize quality groups
-  ['Good', 'Average', 'Rejected'].forEach(q => {
+  // Initialize quality groups (4 buckets: Good, Average, Rejected, Blank)
+  ['Good', 'Average', 'Rejected', 'Blank'].forEach(q => {
     qualityGroups.set(q, {
       total: 0, notEligible: 0, byLogin: 0, byVkyc: 0, finalVkycReject: 0, kycPending: 0, approved: 0, rejectedPostKyc: 0
     });
@@ -274,15 +274,19 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
     const blazeOutput = (r.blaze_output || '').toUpperCase().trim();
     const finalStatus = (r.final_status || '').toUpperCase().trim();
 
-    // Quality is ONLY derived from blaze_output (frozen at lead generation)
-    // REJECT* -> Rejected, STPK/ACCEPT/BQS_MATCH -> Good, STPT/STPI/REFER* -> Average
-    let quality = 'Good';
-    if (blazeOutput.startsWith('REJECT')) {
+    // 🔒 LOCKED QUALITY LOGIC - ONLY from blaze_output, frozen at entry
+    // Rule 1: BLANK = null/empty, Rule 2: REJECT = contains 'REJECT'
+    // Rule 3: AVERAGE = contains 'STPT' or 'STPI', Rule 4: GOOD = everything else
+    let quality: string;
+    if (blazeOutput === '') {
+      quality = 'Blank';
+    } else if (blazeOutput.includes('REJECT')) {
       quality = 'Rejected';
-    } else if (['STPT', 'STPI'].includes(blazeOutput) || blazeOutput.startsWith('REFER')) {
+    } else if (blazeOutput.includes('STPT') || blazeOutput.includes('STPI')) {
       quality = 'Average';
+    } else {
+      quality = 'Good';
     }
-    // STPK, ACCEPT, BQS_MATCH remain as "Good"
 
     // Track month-quality counts for quality contribution analysis
     if (!monthQualityCounts.has(month)) {

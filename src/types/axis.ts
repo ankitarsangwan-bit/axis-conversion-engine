@@ -1,4 +1,5 @@
-export type LeadQuality = 'Good' | 'Average' | 'Rejected';
+// LOCKED: Quality buckets - derived ONLY from blaze_output, frozen at entry
+export type LeadQuality = 'Good' | 'Average' | 'Rejected' | 'Blank';
 
 export type KycStatus = 'KYC Done' | 'KYC Pending';
 
@@ -128,20 +129,39 @@ export interface ConflictRecord {
   resolvedQuality: LeadQuality;
 }
 
-// Lead Quality derivation from BLAZE_OUTPUT
-// When blaze_output is empty/missing, treat as STPK (Good quality)
-export function deriveLeadQuality(blazeOutput: string): LeadQuality {
-  const normalized = blazeOutput?.toUpperCase()?.trim() || 'STPK'; // Default to STPK if empty
-  
-  if (normalized === 'STPT' || normalized === 'STPI') {
-    return 'Average';
+/**
+ * 🔒 LOCKED QUALITY DEFINITION - FINAL SOURCE OF TRUTH
+ * 
+ * Quality is an entry-level, descriptive tag derived ONLY from blaze_output.
+ * It is computed once and NEVER changes. No other field influences Quality.
+ * 
+ * Mapping Rules (Order Matters):
+ * 1. BLANK  = blaze_output IS NULL OR empty
+ * 2. REJECT = blaze_output contains 'REJECT'
+ * 3. AVERAGE = blaze_output contains 'STPT' or 'STPI'
+ * 4. GOOD   = everything else
+ * 
+ * ❌ MUST NOT USE: KYC status, VKYC status, IPA, Underwriting, Decline/approval, 
+ *                  any later bank status, any business inference
+ */
+export function deriveLeadQuality(blazeOutput: string | null | undefined): LeadQuality {
+  // Rule 1: BLANK - null or empty
+  const normalized = blazeOutput?.toUpperCase()?.trim() || '';
+  if (normalized === '') {
+    return 'Blank';
   }
   
-  if (normalized === 'REJECT') {
+  // Rule 2: REJECT - contains 'REJECT'
+  if (normalized.includes('REJECT')) {
     return 'Rejected';
   }
   
-  // STPK and all other values (including empty defaulting to STPK) are Good
+  // Rule 3: AVERAGE - contains 'STPT' or 'STPI'
+  if (normalized.includes('STPT') || normalized.includes('STPI')) {
+    return 'Average';
+  }
+  
+  // Rule 4: GOOD - everything else
   return 'Good';
 }
 
