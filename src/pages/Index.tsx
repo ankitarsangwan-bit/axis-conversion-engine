@@ -83,6 +83,8 @@ function Index() {
       kycPending: qualityRow.kycPending,
       kycDone: qualityRow.kycDone,
       kycConversionPercent: qualityRow.kycConversionPercent,
+      underwriting: qualityRow.underwriting,
+      declined: qualityRow.declined,
       cardsApproved: qualityRow.cardsApproved,
       approvalPercent: qualityRow.approvalPercent,
       rejectedPostKyc: qualityRow.rejectedPostKyc,

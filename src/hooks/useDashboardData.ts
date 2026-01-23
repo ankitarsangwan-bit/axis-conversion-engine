@@ -299,6 +299,8 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
     finalVkycReject: number;
     kycPending: number;
     approved: number;
+    declined: number;
+    underwriting: number;
     rejectedPostKyc: number;
   }>();
 
@@ -311,13 +313,15 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
     finalVkycReject: number;
     kycPending: number;
     approved: number;
+    declined: number;
+    underwriting: number;
     rejectedPostKyc: number;
   }>();
   
   // Initialize quality groups (4 buckets: Good, Average, Rejected, Blank)
   ['Good', 'Average', 'Rejected', 'Blank'].forEach(q => {
     qualityGroups.set(q, {
-      total: 0, notEligible: 0, byLogin: 0, byVkyc: 0, finalVkycReject: 0, kycPending: 0, approved: 0, rejectedPostKyc: 0
+      total: 0, notEligible: 0, byLogin: 0, byVkyc: 0, finalVkycReject: 0, kycPending: 0, approved: 0, declined: 0, underwriting: 0, rejectedPostKyc: 0
     });
   });
 
@@ -364,7 +368,7 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
     // Initialize month group if needed
     if (!monthGroups.has(month)) {
       monthGroups.set(month, {
-        total: 0, notEligible: 0, byLogin: 0, byVkyc: 0, finalVkycReject: 0, kycPending: 0, approved: 0, rejectedPostKyc: 0
+        total: 0, notEligible: 0, byLogin: 0, byVkyc: 0, finalVkycReject: 0, kycPending: 0, approved: 0, declined: 0, underwriting: 0, rejectedPostKyc: 0
       });
     }
     const group = monthGroups.get(month)!;
@@ -382,8 +386,12 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
       totalApproved++;
     }
 
-    // Check if rejected post-KYC
+    // Check if rejected/declined post-KYC
     const rejectedPostKyc = ['REJECTED', 'DECLINED', 'CANCELLED'].includes(finalStatus);
+    if (rejectedPostKyc) {
+      group.declined++;
+      qualityGroup.declined++;
+    }
 
     // Step 1: Determine kyc_eligible from blaze_output
     const kycEligible = !blazeOutput.startsWith('REJECT');
@@ -431,6 +439,8 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
   monthGroups.forEach((group, month) => {
     const eligible = group.total - group.notEligible;
     const kycDone = group.byLogin + group.byVkyc + group.finalVkycReject;
+    // Underwriting = KYC Done but not yet Approved or Declined
+    const underwriting = Math.max(0, kycDone - group.approved - group.declined);
     
     summaryRows.push({
       bank: 'Axis',
@@ -441,6 +451,8 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
       kycPending: group.kycPending,
       kycDone,
       kycConversionPercent: eligible > 0 ? Math.round((kycDone / eligible) * 1000) / 10 : 0,
+      underwriting,
+      declined: group.declined,
       cardsApproved: group.approved,
       approvalPercent: kycDone > 0 ? Math.round((group.approved / kycDone) * 1000) / 10 : 0,
       rejectedPostKyc: group.rejectedPostKyc,
@@ -453,6 +465,7 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
   qualityGroups.forEach((group, quality) => {
     const eligible = group.total - group.notEligible;
     const kycDone = group.byLogin + group.byVkyc + group.finalVkycReject;
+    const underwriting = Math.max(0, kycDone - group.approved - group.declined);
     
     qualityRows.push({
       quality: quality as LeadQuality,
@@ -461,6 +474,8 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
       kycPending: group.kycPending,
       kycDone,
       kycConversionPercent: eligible > 0 ? Math.round((kycDone / eligible) * 1000) / 10 : 0,
+      underwriting,
+      declined: group.declined,
       cardsApproved: group.approved,
       approvalPercent: kycDone > 0 ? Math.round((group.approved / kycDone) * 1000) / 10 : 0,
       rejectedPostKyc: group.rejectedPostKyc,
@@ -470,6 +485,8 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
 
   const totalEligible = totalApps - totalNotEligible;
   const totalKycDone = totalByLogin + totalByVkyc + totalFinalVkycReject;
+  const totalDeclined = summaryRows.reduce((sum, r) => sum + r.declined, 0);
+  const totalUnderwriting = Math.max(0, totalKycDone - totalApproved - totalDeclined);
   const totalRejectedPostKyc = summaryRows.reduce((sum, r) => sum + r.rejectedPostKyc, 0);
 
   const totals: AxisSummaryRow = {
@@ -481,6 +498,8 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
     kycPending: totalKycPending,
     kycDone: totalKycDone,
     kycConversionPercent: totalEligible > 0 ? Math.round((totalKycDone / totalEligible) * 1000) / 10 : 0,
+    underwriting: totalUnderwriting,
+    declined: totalDeclined,
     cardsApproved: totalApproved,
     approvalPercent: totalKycDone > 0 ? Math.round((totalApproved / totalKycDone) * 1000) / 10 : 0,
     rejectedPostKyc: totalRejectedPostKyc,

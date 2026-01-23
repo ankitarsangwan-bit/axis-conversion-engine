@@ -25,6 +25,8 @@ export interface AxisSummaryRow {
   kycPending: number;
   kycDone: number;
   kycConversionPercent: number;
+  underwriting: number;        // Post-KYC, in underwriting process
+  declined: number;            // Declined post-KYC
   cardsApproved: number;
   approvalPercent: number;
   rejectedPostKyc: number;
@@ -39,6 +41,8 @@ export interface QualitySummaryRow {
   kycPending: number;
   kycDone: number;
   kycConversionPercent: number;
+  underwriting: number;        // Post-KYC, in underwriting process
+  declined: number;            // Declined post-KYC
   cardsApproved: number;
   approvalPercent: number;
   rejectedPostKyc: number;
