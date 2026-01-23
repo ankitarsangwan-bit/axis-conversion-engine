@@ -13,23 +13,38 @@ export interface ParsedMISFile {
 }
 
 // Expected schema columns for Axis MIS
-// 🔒 CRITICAL: application_date is the MIS business date (frozen at entry)
-// It determines month attribution and NEVER changes on updates
+// 🔒 AUTHORITATIVE MANDATORY COLUMNS (as of final spec)
+// If ANY of these are missing, NULL, or unparsable at row level,
+// the row MUST fail ingestion and move to Conflicts with a clear reason.
+// NO silent drops allowed.
 export const REQUIRED_COLUMNS = [
-  'application_id',
-  'application_date',  // MIS business date - frozen at first insert
-  'blaze_output',
-  'login_status',
-  'final_status',
-  'last_updated_date',
-  'vkyc_status',
-  'core_non_core',
+  'application_id',       // Application no
+  'application_date',     // DATE (2nd column) - MIS business date, frozen at first insert
+  'blaze_output',         // BLAZE_OUTPUT
+  'name',                 // Name
+  'card_type',            // CARD TYPE
+  'ipa_status',           // IPA Status
+  'login_status',         // LOGIN STATUS
+  'dip_ok_status',        // DIP OK STATUS
+  'ad_status',            // A/D STATUS
+  'bank_event_date',      // DATE (Date 2 - bank event date)
+  'rejection_reason',     // Reason
+  'final_status',         // FINAL STATUS
+  'etcc',                 // ETCC
+  'existing_c',           // EXISTING_C
+  'mis_month',            // Month (present in MIS, not used for derivation)
+  'vkyc_status',          // vkyc Status
+  'vkyc_description',     // VKYC DESCR
+  'core_non_core',        // Core/Noncore
 ] as const;
 
+// Optional columns - may be NULL without failing the row
 export const OPTIONAL_COLUMNS = [
-  'vkyc_eligible',
+  'pincode',              // PINCODE (may be NULL)
   'state',
   'product',
+  'vkyc_eligible',
+  'last_updated_date',    // For state machine date comparisons
 ] as const;
 
 export type RequiredColumn = typeof REQUIRED_COLUMNS[number];
