@@ -72,6 +72,7 @@ export async function saveMISUpload(
     }> = [];
 
     // Insert new records in batches to avoid hitting limits
+    // 🔒 CRITICAL: Month is derived from application_date (MIS business date) - FROZEN at first insert
     if (changePreview.newRecords.length > 0) {
       const batchSize = 500;
       for (let i = 0; i < changePreview.newRecords.length; i += batchSize) {
@@ -108,6 +109,13 @@ export async function saveMISUpload(
             ? normalizeToISODate(String(r.newValues.last_updated_date))
             : new Date().toISOString();
 
+          // 🔒 CRITICAL: Month comes from application_date (MIS business date), NOT last_updated_date
+          // This is the frozen application month that NEVER changes
+          const applicationDate = r.newValues?.application_date 
+            ? normalizeToISODate(String(r.newValues.application_date))
+            : lastUpdatedDate; // Fallback to last_updated_date if application_date missing
+          const month = getMonthFromDate(applicationDate);
+
           // Get decline reason (Reason column)
           const declineReason = r.newValues?.rejection_reason ? String(r.newValues.rejection_reason) : null;
 
@@ -122,7 +130,6 @@ export async function saveMISUpload(
             declineReason
           );
           const cardApproved = isCardApproved(finalStatus);
-          const month = getMonthFromDate(lastUpdatedDate);
 
           return {
             upload_id: upload.id,
@@ -163,6 +170,7 @@ export async function saveMISUpload(
     // NOTE: State machine validation (temporal guard, forward-only journey, terminal states)
     // is enforced at the preview generation stage in useMISUpload.ts
     // Records that reach this point have already passed all guards
+    // 🔒 CRITICAL: Month is NEVER updated on existing records - it's frozen at first insert
     if (changePreview.updatedRecords.length > 0) {
       const batchSize = 500;
       const allConflicts: Array<{
@@ -223,7 +231,10 @@ export async function saveMISUpload(
             declineReason
           );
           const cardApproved = isCardApproved(finalStatus);
-          const month = getMonthFromDate(lastUpdatedDate);
+          
+          // 🔒 CRITICAL: PRESERVE existing month - it's frozen at first insert
+          // Use oldValues.month from the existing record, NOT from incoming MIS
+          const existingMonth = record.oldValues?.month ? String(record.oldValues.month) : null;
 
           // Collect field change conflicts
           if (record.changedFields && record.oldValues && record.newValues) {
@@ -240,7 +251,8 @@ export async function saveMISUpload(
             }
           }
 
-          return {
+          // Build upsert record - EXCLUDE month field so it's not overwritten
+          const upsertRecord: Record<string, any> = {
             application_id: record.application_id,
             upload_id: upload.id,
             last_updated_date: lastUpdatedDate,
@@ -252,7 +264,6 @@ export async function saveMISUpload(
             rejection_reason: record.newValues?.rejection_reason ? String(record.newValues.rejection_reason) : null,
             lead_quality: leadQuality,
             kyc_completed: kycCompleted,
-            month: month,
             dedupe_pass: leadQuality !== 'Rejected' ? 1 : 0,
             bureau_pass: leadQuality === 'Good' ? 1 : 0,
             vkyc_pass: kycCompleted ? 1 : 0,
@@ -262,12 +273,26 @@ export async function saveMISUpload(
             product: record.newValues?.product ? String(record.newValues.product) : null,
             applications: 1,
           };
+          
+          // Only include month if we have the existing value (to preserve it)
+          // If somehow existingMonth is null, we need to derive it from application_date
+          if (existingMonth) {
+            upsertRecord.month = existingMonth;
+          } else {
+            // Fallback: derive from application_date if available, otherwise last_updated_date
+            const applicationDate = record.newValues?.application_date 
+              ? normalizeToISODate(String(record.newValues.application_date))
+              : lastUpdatedDate;
+            upsertRecord.month = getMonthFromDate(applicationDate);
+          }
+          
+          return upsertRecord;
         });
 
         // Use upsert with onConflict to batch update
         const { error: upsertError } = await supabase
           .from('mis_records')
-          .upsert(recordsToUpsert, { onConflict: 'application_id' });
+          .upsert(recordsToUpsert as any[], { onConflict: 'application_id' });
 
         if (upsertError) {
           console.error('Error upserting batch:', upsertError);

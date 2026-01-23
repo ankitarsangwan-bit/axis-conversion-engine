@@ -13,8 +13,11 @@ export interface ParsedMISFile {
 }
 
 // Expected schema columns for Axis MIS
+// 🔒 CRITICAL: application_date is the MIS business date (frozen at entry)
+// It determines month attribution and NEVER changes on updates
 export const REQUIRED_COLUMNS = [
   'application_id',
+  'application_date',  // MIS business date - frozen at first insert
   'blaze_output',
   'login_status',
   'final_status',
