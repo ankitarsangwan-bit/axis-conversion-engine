@@ -134,39 +134,52 @@ export interface ConflictRecord {
 }
 
 /**
- * 🔒 LOCKED QUALITY DEFINITION - FINAL SOURCE OF TRUTH
+ * 🔒 LOCKED BUSINESS RULE - DO NOT MODIFY 🔒
  * 
- * Quality is an entry-level, descriptive tag derived ONLY from blaze_output.
+ * Lead Quality is determined SOLELY by the blaze_output field.
  * It is computed once and NEVER changes. No other field influences Quality.
  * 
- * Mapping Rules (Order Matters):
- * 1. BLANK  = blaze_output IS NULL OR empty
- * 2. REJECT = blaze_output contains 'REJECT'
- * 3. AVERAGE = blaze_output contains 'STPT' or 'STPI'
- * 4. GOOD   = everything else
+ * AUTHORITATIVE Mapping (Whitelist - NO "else = Good" rule):
+ * 
+ * GOOD    → Accept, BQS_Match, Refer With FI, Refer-PAN, STPK
+ * AVERAGE → STPI, STPT
+ * REJECT  → Reject, Reject-1607, Reject-CPD, Reject-CPN, Reject-Cvid19, Reject-Profile Mismatch
+ * BLANK   → NULL, empty string, 0, or ANY value NOT explicitly listed above
  * 
  * ❌ MUST NOT USE: KYC status, VKYC status, IPA, Underwriting, Decline/approval, 
  *                  any later bank status, any business inference
+ * ❌ There is NO default "else = Good" rule. Unmapped values → Blank
  */
+
+// 🔒 AUTHORITATIVE WHITELIST - values explicitly mapped to each quality
+const GOOD_VALUES = ['ACCEPT', 'BQS_MATCH', 'REFER WITH FI', 'REFER-PAN', 'STPK'];
+const AVERAGE_VALUES = ['STPI', 'STPT'];
+const REJECT_PATTERNS = ['REJECT']; // Any value containing 'REJECT' goes here
+
 export function deriveLeadQuality(blazeOutput: string | null | undefined): LeadQuality {
-  // Rule 1: BLANK - null or empty
-  const normalized = blazeOutput?.toUpperCase()?.trim() || '';
-  if (normalized === '') {
+  // Rule 1: BLANK - null, empty, or "0"
+  const normalized = blazeOutput?.toString().toUpperCase()?.trim() || '';
+  if (normalized === '' || normalized === '0') {
     return 'Blank';
   }
   
-  // Rule 2: REJECT - contains 'REJECT'
-  if (normalized.includes('REJECT')) {
+  // Rule 2: REJECT - contains 'REJECT' (handles all reject variants)
+  if (REJECT_PATTERNS.some(pattern => normalized.includes(pattern))) {
     return 'Rejected';
   }
   
-  // Rule 3: AVERAGE - contains 'STPT' or 'STPI'
-  if (normalized.includes('STPT') || normalized.includes('STPI')) {
+  // Rule 3: AVERAGE - exact match to STPI or STPT
+  if (AVERAGE_VALUES.includes(normalized)) {
     return 'Average';
   }
   
-  // Rule 4: GOOD - everything else
-  return 'Good';
+  // Rule 4: GOOD - exact match to whitelist values
+  if (GOOD_VALUES.includes(normalized)) {
+    return 'Good';
+  }
+  
+  // Rule 5: BLANK - any unmapped or unknown value (NO default to Good!)
+  return 'Blank';
 }
 
 // Normalize blaze_output - PRESERVE empty/null for 'Blank' quality
