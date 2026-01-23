@@ -382,7 +382,14 @@ export function useMISUpload() {
     // Use state machine to select best record (most advanced journey stage)
     const incomingMap = new Map<string, RawMISRow[]>();
     const appIdSource = mappingLookup.get('application_id')!;
-    const dateSource = mappingLookup.get('last_updated_date');
+    
+    // 🔒 TEMPORAL SOURCE: Use last_updated_date if mapped, fallback to application_date
+    // ⚠️ NEVER use bank_event_date (DATE 2) for temporal comparisons - it may be NULL/blank
+    const lastUpdatedSource = mappingLookup.get('last_updated_date');
+    const appDateSource = mappingLookup.get('application_date');
+    // Prefer last_updated_date, fallback to application_date, never use bank_event_date
+    const dateSourceForGuard = lastUpdatedSource || appDateSource;
+    
     const finalStatusSource = mappingLookup.get('final_status');
     const loginStatusSource = mappingLookup.get('login_status');
     const vkycStatusSource = mappingLookup.get('vkyc_status');
@@ -406,12 +413,13 @@ export function useMISUpload() {
       if (rows.length > 1) {
         duplicatesCollapsed += rows.length - 1;
         // Convert to format expected by selectBestRecord
+        // 🔒 Use dateSourceForGuard (application_date), NOT bank_event_date
         const normalizedRows = rows.map(row => ({
           final_status: finalStatusSource ? String(row[finalStatusSource] || '') : null,
           login_status: loginStatusSource ? String(row[loginStatusSource] || '') : null,
           vkyc_status: vkycStatusSource ? String(row[vkycStatusSource] || '') : null,
           blaze_output: blazeOutputSource ? String(row[blazeOutputSource] || '') : null,
-          last_updated_date: dateSource ? String(row[dateSource] || '') : null,
+          last_updated_date: dateSourceForGuard ? String(row[dateSourceForGuard] || '') : null,
           _originalRow: row,
         }));
         
@@ -449,13 +457,14 @@ export function useMISUpload() {
         });
       } else {
         // Existing record - apply state machine logic
+        // 🔒 CRITICAL: Use dateSourceForGuard (application_date), NOT bank_event_date
         const updateDecision = shouldUpdateRecord(
           {
             finalStatus: finalStatusSource ? String(row[finalStatusSource] || '') : null,
             loginStatus: loginStatusSource ? String(row[loginStatusSource] || '') : null,
             vkycStatus: vkycStatusSource ? String(row[vkycStatusSource] || '') : null,
             blazeOutput: blazeOutputSource ? String(row[blazeOutputSource] || '') : null,
-            lastUpdatedDate: dateSource ? String(row[dateSource] || '') : null,
+            lastUpdatedDate: dateSourceForGuard ? String(row[dateSourceForGuard] || '') : null,
           },
           {
             finalStatus: existing.final_status,

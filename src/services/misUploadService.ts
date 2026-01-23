@@ -13,8 +13,30 @@ import {
 import { 
   calculateJourneyStage, 
   shouldUpdateRecord,
+  isExcelZeroDate,
   JourneyStage 
 } from '@/services/journeyStateMachine';
+
+/**
+ * Helper to normalize bank_event_date, treating Excel zero dates as NULL
+ */
+function normalizeBankEventDate(value: unknown): string | null {
+  if (!value) return null;
+  const strVal = String(value).trim();
+  if (strVal === '' || isExcelZeroDate(strVal)) {
+    return null; // Treat Excel zero date (1899-12-30) as NULL
+  }
+  try {
+    const normalized = normalizeToISODate(strVal).split('T')[0];
+    // Double-check: if normalized to 1899-12-30, treat as NULL
+    if (normalized === '1899-12-30') {
+      return null;
+    }
+    return normalized;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Track skipped updates for logging/debugging
@@ -141,9 +163,8 @@ export async function saveMISUpload(
             ipa_status: r.newValues?.ipa_status ? String(r.newValues.ipa_status) : null,
             dip_ok_status: r.newValues?.dip_ok_status ? String(r.newValues.dip_ok_status) : null,
             ad_status: r.newValues?.ad_status ? String(r.newValues.ad_status) : null,
-            bank_event_date: r.newValues?.bank_event_date 
-              ? normalizeToISODate(String(r.newValues.bank_event_date)).split('T')[0] 
-              : null,
+            // 🔒 bank_event_date: Treat NULL and Excel zero dates (1899-12-30) as NULL
+            bank_event_date: normalizeBankEventDate(r.newValues?.bank_event_date),
             etcc: r.newValues?.etcc ? String(r.newValues.etcc) : null,
             existing_c: r.newValues?.existing_c ? String(r.newValues.existing_c) : null,
             mis_month: r.newValues?.mis_month ? String(r.newValues.mis_month) : null,
@@ -282,9 +303,8 @@ export async function saveMISUpload(
             ipa_status: record.newValues?.ipa_status ? String(record.newValues.ipa_status) : null,
             dip_ok_status: record.newValues?.dip_ok_status ? String(record.newValues.dip_ok_status) : null,
             ad_status: record.newValues?.ad_status ? String(record.newValues.ad_status) : null,
-            bank_event_date: record.newValues?.bank_event_date 
-              ? normalizeToISODate(String(record.newValues.bank_event_date)).split('T')[0] 
-              : null,
+            // 🔒 bank_event_date: Treat NULL and Excel zero dates (1899-12-30) as NULL
+            bank_event_date: normalizeBankEventDate(record.newValues?.bank_event_date),
             etcc: record.newValues?.etcc ? String(record.newValues.etcc) : null,
             existing_c: record.newValues?.existing_c ? String(record.newValues.existing_c) : null,
             // 🔒 PRESERVE existing mis_month - it's frozen at first insert
