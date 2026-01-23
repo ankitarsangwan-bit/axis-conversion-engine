@@ -8,6 +8,7 @@ import { ThemeToggle } from '@/components/ThemeToggle';
 import { DateRangeFilter } from '@/components/DateRangeFilter';
 import { QualityFilter, QualityLevel } from '@/components/QualityFilter';
 import { useDashboardData } from '@/hooks/useDashboardData';
+import { LeadQuality } from '@/types/axis';
 import { 
   FullViewSkeleton,
   QualityViewSkeleton,
@@ -56,24 +57,27 @@ function Index() {
     }
   };
 
-  // Filter summary rows by quality
+  // Filter data by quality BEFORE aggregation - single source of truth
+  // Quality filter applies to Full View totals, not to the per-row data
   const filteredData = useMemo(() => {
-    if (!data || qualityFilter === 'all') return data;
+    if (!data) return null;
+    
+    // If no quality filter or "all", return raw data
+    if (qualityFilter === 'all') return data;
+    
+    // QualityLevel values directly match quality bucket names (except 'all')
+    const selectedQuality = qualityFilter; // 'Good' | 'Average' | 'Rejected' | 'Blank'
     
     // Find the quality row matching the filter
-    const qualityRow = data.qualityRows.find(q => q.quality === qualityFilter);
+    const qualityRow = data.qualityRows.find(q => q.quality === selectedQuality);
     
     if (!qualityRow) return data;
     
-    // Create filtered summary rows from quality data
-    const filteredSummaryRows = data.summaryRows.map(row => ({
-      ...row,
-      // We'll need to recalculate based on quality - for now use quality totals
-    }));
-    
     // Use quality row data as the filtered totals
+    // This ensures consistency: totals come from the same computation as qualityRows
     const filteredTotals = {
       ...data.totals,
+      quality: selectedQuality as LeadQuality,
       totalApplications: qualityRow.totalApplications,
       eligibleForKyc: qualityRow.eligibleForKyc,
       kycPending: qualityRow.kycPending,
@@ -85,9 +89,15 @@ function Index() {
       rejectionPercent: qualityRow.rejectionPercent,
     };
     
+    // Filter monthly quality data for the chart
+    const filteredMonthlyQualityData = data.monthlyQualityData.filter(
+      m => m.quality === selectedQuality
+    );
+    
     return {
       ...data,
       totals: filteredTotals,
+      monthlyQualityData: filteredMonthlyQualityData,
     };
   }, [data, qualityFilter]);
 
