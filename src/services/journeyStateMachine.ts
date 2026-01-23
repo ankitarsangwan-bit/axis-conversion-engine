@@ -148,26 +148,58 @@ export function isTransitionAllowed(
 }
 
 /**
+ * Excel zero date constant - represents blank/NULL dates in Excel
+ * When Excel sees an empty date cell, it sometimes exports as 1899-12-30
+ */
+const EXCEL_ZERO_DATE = '1899-12-30';
+
+/**
+ * Check if a date is the Excel zero date (blank/NULL indicator)
+ */
+export function isExcelZeroDate(dateStr: string | null | undefined): boolean {
+  if (!dateStr) return true;
+  const normalized = String(dateStr).trim();
+  return normalized === '' || 
+         normalized.startsWith(EXCEL_ZERO_DATE) ||
+         normalized === '0' ||
+         normalized === 'NaN';
+}
+
+/**
  * Compare two dates and determine if incoming is newer or equal
  * Returns true if incoming should be considered (>= existing)
+ * 
+ * 🔒 IMPORTANT: This function is now LENIENT for MIS ingestion:
+ * - If either date is NULL/blank/Excel-zero → allow update (defer to journey stage)
+ * - Temporal guard is SECONDARY to journey stage guard
  */
 export function isNewerOrEqual(
   incomingDate: string | null | undefined,
   existingDate: string | null | undefined
 ): boolean {
-  if (!existingDate) return true; // No existing date, always accept
-  if (!incomingDate) return false; // No incoming date, reject
+  // If existing date is blank/zero, always accept incoming
+  if (!existingDate || isExcelZeroDate(existingDate)) return true;
+  
+  // If incoming date is blank/zero, ALSO accept (journey stage is the primary guard)
+  // This prevents blank DATE 2 fields from blocking updates
+  if (!incomingDate || isExcelZeroDate(incomingDate)) return true;
   
   try {
     const incoming = new Date(normalizeToISODate(incomingDate));
     const existing = new Date(normalizeToISODate(existingDate));
     
+    // If either date is invalid (NaN), accept the update
+    if (isNaN(incoming.getTime()) || isNaN(existing.getTime())) {
+      return true;
+    }
+    
     // >= comparison (accept same date updates)
     return incoming.getTime() >= existing.getTime();
   } catch {
-    // If date parsing fails, be conservative and reject
-    console.warn('Date comparison failed:', { incomingDate, existingDate });
-    return false;
+    // If date parsing fails, be permissive and ALLOW update
+    // Journey stage guard is the primary protection
+    console.warn('Date comparison failed, allowing update:', { incomingDate, existingDate });
+    return true;
   }
 }
 
@@ -184,10 +216,20 @@ export interface UpdateDecision {
 /**
  * Determine if an incoming record should update an existing record
  * 
- * Implements the full state machine logic:
- * 1. Temporal guard: incoming.last_updated_date >= existing.last_updated_date
- * 2. Stage guard: incoming.stage >= existing.stage
- * 3. Terminal guard: existing terminal stages are immutable
+ * Implements the state machine logic with CORRECT guard priority:
+ * 
+ * 🔒 PRIMARY GUARDS (hard blockers):
+ * 1. Terminal guard: existing terminal stages (Approved/Reject) are IMMUTABLE
+ * 2. Stage guard: can only move forward (higher rank) or stay same
+ * 
+ * ⚠️ SECONDARY GUARD (soft, lenient):
+ * 3. Temporal guard: ONLY uses last_updated_date (NOT bank_event_date)
+ *    - If dates are missing/blank/Excel-zero → ALLOW update (defer to stage guard)
+ *    - Temporal guard is informational, NOT a hard blocker
+ * 
+ * 🚫 EXCLUDED FROM GUARDS:
+ * - bank_event_date (DATE 2) is NEVER used for staleness checks
+ * - application_date is immutable once set (frozen at first insert)
  */
 export function shouldUpdateRecord(
   incoming: {
@@ -219,7 +261,7 @@ export function shouldUpdateRecord(
     existing.blazeOutput
   );
   
-  // Terminal guard: existing terminal stages are immutable
+  // 🔒 PRIMARY GUARD 1: Terminal stages are FROZEN (Approved/Final Reject)
   if (isTerminalStage(existingStage)) {
     return {
       shouldUpdate: false,
@@ -229,21 +271,28 @@ export function shouldUpdateRecord(
     };
   }
   
-  // Temporal guard: incoming date must be >= existing date
-  if (!isNewerOrEqual(incoming.lastUpdatedDate, existing.lastUpdatedDate)) {
+  // 🔒 PRIMARY GUARD 2: Stage guard - can only move forward
+  // This is checked BEFORE temporal guard because journey progression is authoritative
+  if (!isTransitionAllowed(existingStage, incomingStage)) {
     return {
       shouldUpdate: false,
-      reason: `Incoming date (${incoming.lastUpdatedDate}) is older than existing (${existing.lastUpdatedDate}). Stale update ignored.`,
+      reason: `Backward transition not allowed: ${JourneyStage[existingStage]} → ${JourneyStage[incomingStage]}. State regression ignored.`,
       incomingStage,
       existingStage,
     };
   }
   
-  // Stage guard: can only move forward
-  if (!isTransitionAllowed(existingStage, incomingStage)) {
+  // ⚠️ SECONDARY GUARD: Temporal check (lenient - does NOT block if dates are missing)
+  // Note: isNewerOrEqual now returns TRUE for blank/Excel-zero dates
+  // This means temporal guard only rejects if BOTH dates are valid AND incoming < existing
+  const temporalCheck = isNewerOrEqual(incoming.lastUpdatedDate, existing.lastUpdatedDate);
+  
+  if (!temporalCheck) {
+    // Only reject if we have clear evidence of stale data
+    // (both dates valid and incoming is genuinely older)
     return {
       shouldUpdate: false,
-      reason: `Backward transition not allowed: ${JourneyStage[existingStage]} → ${JourneyStage[incomingStage]}. State regression ignored.`,
+      reason: `Incoming date (${incoming.lastUpdatedDate}) is older than existing (${existing.lastUpdatedDate}). Stale update ignored.`,
       incomingStage,
       existingStage,
     };
