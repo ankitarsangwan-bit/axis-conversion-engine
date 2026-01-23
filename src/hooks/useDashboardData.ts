@@ -343,18 +343,31 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
     const blazeOutput = (r.blaze_output || '').toUpperCase().trim();
     const finalStatus = (r.final_status || '').toUpperCase().trim();
 
-    // 🔒 LOCKED QUALITY LOGIC - ONLY from blaze_output, frozen at entry
-    // Rule 1: BLANK = null/empty, Rule 2: REJECT = contains 'REJECT'
-    // Rule 3: AVERAGE = contains 'STPT' or 'STPI', Rule 4: GOOD = everything else
+    // 🔒 AUTHORITATIVE QUALITY LOGIC - WHITELIST ONLY (no "else = Good")
+    // Uses the FROZEN lead_quality field from database (computed at ingestion)
+    // Fallback: derive on-the-fly using authoritative whitelist
+    const GOOD_VALUES = ['ACCEPT', 'BQS_MATCH', 'REFER WITH FI', 'REFER-PAN', 'STPK'];
+    const AVERAGE_VALUES = ['STPI', 'STPT'];
+    
     let quality: string;
-    if (blazeOutput === '') {
-      quality = 'Blank';
-    } else if (blazeOutput.includes('REJECT')) {
-      quality = 'Rejected';
-    } else if (blazeOutput.includes('STPT') || blazeOutput.includes('STPI')) {
-      quality = 'Average';
+    
+    // Prefer frozen lead_quality from database if available
+    if (r.lead_quality && ['Good', 'Average', 'Rejected', 'Blank'].includes(r.lead_quality)) {
+      quality = r.lead_quality;
     } else {
-      quality = 'Good';
+      // Fallback: derive using authoritative whitelist (no "else = Good")
+      if (blazeOutput === '' || blazeOutput === '0') {
+        quality = 'Blank';
+      } else if (blazeOutput.includes('REJECT')) {
+        quality = 'Rejected';
+      } else if (AVERAGE_VALUES.includes(blazeOutput)) {
+        quality = 'Average';
+      } else if (GOOD_VALUES.includes(blazeOutput)) {
+        quality = 'Good';
+      } else {
+        // Unknown values → Blank (NOT Good!)
+        quality = 'Blank';
+      }
     }
 
     // Track month-quality counts for quality contribution analysis
