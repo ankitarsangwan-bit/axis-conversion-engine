@@ -439,12 +439,14 @@ export function useMISUpload() {
 }
 
 // Column name aliases for smart matching - includes exact Axis Excel headers
+// 🔒 CRITICAL: application_date is typically column 2 in MIS (the business date, frozen at entry)
 const COLUMN_ALIASES: Record<string, string[]> = {
   'application_id': ['application_id', 'app_id', 'applicationid', 'appid', 'application id', 'app id', 'id'],
+  'application_date': ['application_date', 'applicationdate', 'application date', 'app_date', 'appdate', 'created_date', 'createddate', 'created date', 'create_date', 'createdate', 'date', 'entry_date', 'entrydate'],
   'blaze_output': ['blaze_output', 'blazeoutput', 'blaze output', 'blaze', 'blaze_op', 'blazeop', 'BLAZE_OUTPUT'],
   'login_status': ['login_status', 'loginstatus', 'login status', 'login_st', 'login', 'loginstages', 'LOGIN STATUS'],
   'final_status': ['final_status', 'finalstatus', 'final status', 'final_st', 'finalst', 'status', 'final', 'FINAL STATUS'],
-  'last_updated_date': ['last_updated_date', 'lastupdateddate', 'last updated date', 'update_date', 'updatedate', 'updated_date', 'updateddate', 'date', 'lastupdate'],
+  'last_updated_date': ['last_updated_date', 'lastupdateddate', 'last updated date', 'update_date', 'updatedate', 'updated_date', 'updateddate', 'lastupdate', 'last_update'],
   'vkyc_status': ['vkyc_status', 'vkycstatus', 'vkyc status', 'vkyc_st', 'vkycst', 'vkyc', 'v_kyc_status', 'vkyc Status'],
   'core_non_core': ['core_non_core', 'corenoncore', 'core non core', 'core_noncore', 'core/non-core', 'core / non-core', 'core', 'noncore', 'Core/Noncore', 'corenoncore'],
   'vkyc_eligible': ['vkyc_eligible', 'vkyceligible', 'vkyc eligible', 'vkyc_elig', 'vkycelig', 'eligibility'],
