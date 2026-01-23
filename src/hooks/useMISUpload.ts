@@ -439,10 +439,13 @@ export function useMISUpload() {
 }
 
 // Column name aliases for smart matching - includes exact Axis Excel headers
-// 🔒 CRITICAL: application_date is typically column 2 in MIS (the business date, frozen at entry)
+// 🔒 LOCKED: application_date = "DATE" column (2nd col in Axis MIS)
+// This is the MIS business date, frozen at entry. Month derivation uses ONLY this.
+// DO NOT MODIFY without explicit approval.
 const COLUMN_ALIASES: Record<string, string[]> = {
   'application_id': ['application_id', 'app_id', 'applicationid', 'appid', 'application id', 'app id', 'id'],
-  'application_date': ['application_date', 'applicationdate', 'application date', 'app_date', 'appdate', 'created_date', 'createddate', 'created date', 'create_date', 'createdate', 'date', 'entry_date', 'entrydate'],
+  // 🔒 LOCKED: "date" is first priority - this is the DATE column (2nd col) in Axis MIS
+  'application_date': ['date', 'DATE', 'Date', 'application_date', 'applicationdate', 'application date'],
   'blaze_output': ['blaze_output', 'blazeoutput', 'blaze output', 'blaze', 'blaze_op', 'blazeop', 'BLAZE_OUTPUT'],
   'login_status': ['login_status', 'loginstatus', 'login status', 'login_st', 'login', 'loginstages', 'LOGIN STATUS'],
   'final_status': ['final_status', 'finalstatus', 'final status', 'final_st', 'finalst', 'status', 'final', 'FINAL STATUS'],
