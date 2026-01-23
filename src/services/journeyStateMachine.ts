@@ -138,12 +138,9 @@ export function isTransitionAllowed(
   currentStage: JourneyStage,
   newStage: JourneyStage
 ): boolean {
-  // Terminal stages are frozen
-  if (isTerminalStage(currentStage)) {
-    return false;
-  }
-  
-  // Only allow forward or equal progression
+  // ✅ RELAXED: Terminal stages are no longer frozen
+  // Allow same-stage updates (APPROVED → APPROVED is valid)
+  // Allow forward or equal progression
   return newStage >= currentStage;
 }
 
