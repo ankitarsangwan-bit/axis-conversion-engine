@@ -13,13 +13,16 @@ export interface ParsedMISFile {
 }
 
 // Expected schema columns for Axis MIS
-// 🔒 AUTHORITATIVE MANDATORY COLUMNS (as of final spec)
-// If ANY of these are missing, NULL, or unparsable at row level,
-// the row MUST fail ingestion and move to Conflicts with a clear reason.
+// 🔒 AUTHORITATIVE MANDATORY COLUMNS — LOCKED (do not modify without approval)
+// These 18 columns MUST exist and be mapped. Upload fails if any are missing.
+// Row-level validation:
+//   - application_id, application_date: MUST be non-empty & parseable
+//   - bank_event_date: CAN be NULL if blank in MIS (it's the 2nd DATE column)
+//   - All others: MUST be mapped (but blank values allowed at row level)
 // NO silent drops allowed.
 export const REQUIRED_COLUMNS = [
-  'application_id',       // Application no
-  'application_date',     // DATE (2nd column) - MIS business date, frozen at first insert
+  'application_id',       // Application no — primary key, MUST be non-empty
+  'application_date',     // DATE (2nd column) — MIS business date, MUST be non-empty & valid date
   'blaze_output',         // BLAZE_OUTPUT
   'name',                 // Name
   'card_type',            // CARD TYPE
@@ -27,24 +30,31 @@ export const REQUIRED_COLUMNS = [
   'login_status',         // LOGIN STATUS
   'dip_ok_status',        // DIP OK STATUS
   'ad_status',            // A/D STATUS
-  'bank_event_date',      // DATE (Date 2 - bank event date)
+  'bank_event_date',      // DATE 2 (bank event date) — CAN be NULL if blank in MIS
   'rejection_reason',     // Reason
   'final_status',         // FINAL STATUS
   'etcc',                 // ETCC
   'existing_c',           // EXISTING_C
-  'mis_month',            // Month (present in MIS, not used for derivation)
+  'mis_month',            // Month (present in MIS, NOT used for month derivation)
   'vkyc_status',          // vkyc Status
   'vkyc_description',     // VKYC DESCR
   'core_non_core',        // Core/Noncore
 ] as const;
 
-// Optional columns - may be NULL without failing the row
+// Optional columns — may be NULL without failing the row
 export const OPTIONAL_COLUMNS = [
   'pincode',              // PINCODE (may be NULL)
   'state',
   'product',
   'vkyc_eligible',
   'last_updated_date',    // For state machine date comparisons
+] as const;
+
+// 🔒 STRICT VALIDATION COLUMNS — these MUST be non-empty at row level
+// (distinct from schema-level requirement that column must be mapped)
+export const STRICT_NON_EMPTY_COLUMNS = [
+  'application_id',
+  'application_date',
 ] as const;
 
 export type RequiredColumn = typeof REQUIRED_COLUMNS[number];

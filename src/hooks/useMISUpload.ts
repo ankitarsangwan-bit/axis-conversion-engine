@@ -156,13 +156,17 @@ export function useMISUpload() {
       return;
     }
 
-    // Build mapping lookup for row-level validation
-    const mappingLookup = new Map(
+    // Build mapping lookup for row-level validation (typed as string for flexibility)
+    const mappingLookup = new Map<string, string>(
       state.columnMappings
         .filter(m => m.isMapped && m.targetColumn)
         .map(m => [m.targetColumn!, m.sourceColumn])
     );
 
+    // 🔒 STRICT NON-EMPTY COLUMNS — only these require non-empty values at row level
+    // Other required columns just need to be MAPPED, but can have blank values
+    const STRICT_NON_EMPTY: string[] = ['application_id', 'application_date'];
+    
     // Row-level validation: track failures by column for summary
     const columnFailures: Map<string, { rows: number[]; values: (string | undefined)[]; errorType: 'blank' | 'invalid_format' }> = new Map();
     const invalidRowSet = new Set<number>();
@@ -170,8 +174,8 @@ export function useMISUpload() {
     state.parsedFile.rows.forEach((row, idx) => {
       const rowNum = idx + 2; // Excel row number (1-indexed + header)
 
-      // Check each required column has a non-empty value
-      REQUIRED_COLUMNS.forEach(col => {
+      // Check STRICT columns for non-empty values (only application_id and application_date)
+      STRICT_NON_EMPTY.forEach(col => {
         const sourceCol = mappingLookup.get(col);
         if (!sourceCol) return;
 
@@ -219,11 +223,12 @@ export function useMISUpload() {
         }
       }
 
-      // Special validation: bank_event_date should be parseable if present
+      // bank_event_date: CAN be NULL — only validate format if value is present
       const bankDateSource = mappingLookup.get('bank_event_date');
       if (bankDateSource) {
         const dateVal = row[bankDateSource];
-        if (dateVal && typeof dateVal !== 'object') {
+        // Only validate if non-empty (NULL is allowed for bank_event_date)
+        if (dateVal && String(dateVal).trim() !== '' && typeof dateVal !== 'object') {
           const parsed = new Date(String(dateVal));
           if (isNaN(parsed.getTime())) {
             invalidRowSet.add(rowNum);
@@ -655,37 +660,38 @@ export function useMISUpload() {
   };
 }
 
-// Column name aliases for smart matching - includes exact Axis Excel headers
-// 🔒 LOCKED: application_date = "DATE" column (2nd col in Axis MIS)
-// This is the MIS business date, frozen at entry. Month derivation uses ONLY this.
+// 🔒 COLUMN ALIASES — LOCKED
+// Maps target column names to possible Excel header variations
+// application_date = "DATE" column (2nd col, position-based in Axis MIS)
+// bank_event_date = "DATE 2" or second DATE column (status/bank event date)
 // DO NOT MODIFY without explicit approval.
 const COLUMN_ALIASES: Record<string, string[]> = {
-  // MANDATORY COLUMNS (all must be present)
-  'application_id': ['application_id', 'app_id', 'applicationid', 'appid', 'application id', 'app id', 'id', 'Application no', 'application no', 'applicationno'],
+  // 🔒 MANDATORY COLUMNS (18 total — all must be mapped)
+  'application_id': ['application no', 'Application no', 'APPLICATION NO', 'application_id', 'app_id', 'applicationid', 'appid', 'application id', 'app id'],
   'application_date': ['date', 'DATE', 'Date', 'application_date', 'applicationdate', 'application date'],
-  'blaze_output': ['blaze_output', 'blazeoutput', 'blaze output', 'blaze', 'blaze_op', 'blazeop', 'BLAZE_OUTPUT'],
+  'blaze_output': ['blaze_output', 'BLAZE_OUTPUT', 'Blaze_Output', 'blazeoutput', 'blaze output', 'blaze'],
   'name': ['name', 'Name', 'NAME', 'applicant_name', 'applicantname', 'applicant name'],
-  'card_type': ['card_type', 'cardtype', 'card type', 'CARD TYPE', 'Card Type'],
-  'ipa_status': ['ipa_status', 'ipastatus', 'ipa status', 'IPA Status', 'IPA STATUS'],
-  'login_status': ['login_status', 'loginstatus', 'login status', 'login_st', 'login', 'loginstages', 'LOGIN STATUS'],
-  'dip_ok_status': ['dip_ok_status', 'dipokstatus', 'dip ok status', 'DIP OK STATUS', 'DIP_OK_STATUS'],
-  'ad_status': ['ad_status', 'adstatus', 'a/d status', 'A/D STATUS', 'A/D_STATUS', 'a_d_status'],
-  'bank_event_date': ['bank_event_date', 'bankeventdate', 'date 2', 'Date 2', 'DATE 2', 'date2'],
-  'rejection_reason': ['rejection_reason', 'rejectionreason', 'rejection reason', 'reject_reason', 'rejectreason', 'decline_reason', 'declinereason', 'decline reason', 'Reason', 'reason', 'REASON'],
-  'final_status': ['final_status', 'finalstatus', 'final status', 'final_st', 'finalst', 'status', 'final', 'FINAL STATUS'],
+  'card_type': ['card type', 'CARD TYPE', 'Card Type', 'card_type', 'cardtype'],
+  'ipa_status': ['ipa status', 'IPA Status', 'IPA STATUS', 'ipa_status', 'ipastatus'],
+  'login_status': ['login status', 'LOGIN STATUS', 'Login Status', 'login_status', 'loginstatus', 'login'],
+  'dip_ok_status': ['dip ok status', 'DIP OK STATUS', 'DIP_OK_STATUS', 'dip_ok_status', 'dipokstatus'],
+  'ad_status': ['a/d status', 'A/D STATUS', 'A/D Status', 'ad_status', 'adstatus', 'a_d_status'],
+  'bank_event_date': ['date 2', 'Date 2', 'DATE 2', 'date2', 'bank_event_date', 'bankeventdate', 'bank event date'],
+  'rejection_reason': ['reason', 'Reason', 'REASON', 'rejection_reason', 'rejectionreason', 'rejection reason', 'reject_reason', 'decline_reason'],
+  'final_status': ['final status', 'FINAL STATUS', 'Final Status', 'final_status', 'finalstatus'],
   'etcc': ['etcc', 'ETCC', 'Etcc'],
-  'existing_c': ['existing_c', 'existingc', 'existing c', 'EXISTING_C', 'Existing_C'],
-  'mis_month': ['mis_month', 'month', 'Month', 'MONTH'],
-  'vkyc_status': ['vkyc_status', 'vkycstatus', 'vkyc status', 'vkyc_st', 'vkycst', 'vkyc', 'v_kyc_status', 'vkyc Status'],
-  'vkyc_description': ['vkyc_description', 'vkycdescription', 'vkyc description', 'vkyc descr', 'VKYC DESCR', 'vkyc_descr'],
-  'core_non_core': ['core_non_core', 'corenoncore', 'core non core', 'core_noncore', 'core/non-core', 'core / non-core', 'core', 'noncore', 'Core/Noncore', 'corenoncore'],
+  'existing_c': ['existing_c', 'EXISTING_C', 'Existing_C', 'existingc', 'existing c'],
+  'mis_month': ['month', 'Month', 'MONTH', 'mis_month'],
+  'vkyc_status': ['vkyc status', 'vkyc Status', 'VKYC STATUS', 'vkyc_status', 'vkycstatus'],
+  'vkyc_description': ['vkyc descr', 'VKYC DESCR', 'VKYC_DESCR', 'vkyc_description', 'vkycdescription', 'vkyc description'],
+  'core_non_core': ['core/noncore', 'Core/Noncore', 'CORE/NONCORE', 'core_non_core', 'corenoncore', 'core non core', 'core/non-core'],
   
   // OPTIONAL COLUMNS
-  'pincode': ['pincode', 'pin_code', 'pin code', 'PINCODE', 'Pincode'],
-  'vkyc_eligible': ['vkyc_eligible', 'vkyceligible', 'vkyc eligible', 'vkyc_elig', 'vkycelig', 'eligibility'],
-  'state': ['state', 'st', 'location_state'],
-  'product': ['product', 'prod', 'product_name', 'productname'],
-  'last_updated_date': ['last_updated_date', 'lastupdateddate', 'last updated date', 'update_date', 'updatedate', 'updated_date', 'updateddate', 'lastupdate', 'last_update'],
+  'pincode': ['pincode', 'PINCODE', 'Pincode', 'pin_code', 'pin code'],
+  'vkyc_eligible': ['vkyc_eligible', 'vkyceligible', 'vkyc eligible', 'vkyc_elig', 'eligibility'],
+  'state': ['state', 'State', 'STATE', 'location_state'],
+  'product': ['product', 'Product', 'PRODUCT', 'product_name', 'productname'],
+  'last_updated_date': ['last_updated_date', 'lastupdateddate', 'last updated date', 'update_date', 'updatedate'],
 };
 
 function generateColumnMappings(sourceColumns: string[]): ColumnMapping[] {
