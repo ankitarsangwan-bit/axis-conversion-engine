@@ -169,10 +169,11 @@ export function deriveLeadQuality(blazeOutput: string | null | undefined): LeadQ
   return 'Good';
 }
 
-// Normalize blaze_output - default empty to STPK
-export function normalizeBlazeOutput(blazeOutput: string | null | undefined): string {
+// Normalize blaze_output - PRESERVE empty/null for 'Blank' quality
+export function normalizeBlazeOutput(blazeOutput: string | null | undefined): string | null {
   const val = blazeOutput?.toUpperCase()?.trim() || '';
-  return val === '' ? 'STPK' : val;
+  // 🔒 Return null for empty values to correctly derive 'Blank' quality
+  return val === '' ? null : val;
 }
 
 // Normalize core_non_core - default empty to Core

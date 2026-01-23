@@ -81,15 +81,8 @@ export async function saveMISUpload(
           const rawBlazeOutput = r.newValues?.blaze_output as string;
           const rawCoreNonCore = r.newValues?.core_non_core as string;
           
-          // Track missing required fields
-          if (!rawBlazeOutput || rawBlazeOutput.trim() === '') {
-            missingFieldConflicts.push({
-              application_id: r.application_id,
-              field_name: 'blaze_output',
-              old_value: '',
-              new_value: 'STPK (defaulted - missing in MIS)',
-            });
-          }
+          // Note: Blank blaze_output is valid and results in 'Blank' quality
+          // Only track core_non_core as missing field conflict
           if (!rawCoreNonCore || rawCoreNonCore.trim() === '') {
             missingFieldConflicts.push({
               application_id: r.application_id,
