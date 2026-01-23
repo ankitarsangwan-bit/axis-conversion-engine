@@ -13,6 +13,7 @@ import {
   REQUIRED_COLUMNS,
   OPTIONAL_COLUMNS,
   RawMISRow,
+  ColumnErrorSummary,
 } from '@/types/misUpload';
 import { supabase } from '@/integrations/supabase/client';
 import { saveMISUpload } from '@/services/misUploadService';
@@ -32,6 +33,7 @@ const initialState: UploadState = {
   changePreview: null,
   isProcessing: false,
   error: null,
+  droppedRows: new Set<number>(),
 };
 
 export function useMISUpload() {
@@ -106,6 +108,7 @@ export function useMISUpload() {
 
     const errors: ValidationError[] = [];
     const warnings: ValidationWarning[] = [];
+    const totalRows = state.parsedFile.rows.length;
 
     // Check required columns are mapped (schema-level validation)
     const mappedTargets = state.columnMappings
@@ -124,12 +127,25 @@ export function useMISUpload() {
       }
     });
 
+    // Build error summary for unmapped columns
+    const errorSummary: ColumnErrorSummary[] = unmappedRequired.map(col => ({
+      column: col,
+      errorCount: totalRows, // Affects all rows
+      errorType: 'unmapped' as const,
+      sampleErrors: [],
+      fixAction: 'remap' as const,
+    }));
+
     // If schema-level validation fails, stop here (no row-level checks)
     if (unmappedRequired.length > 0) {
       const validationResult: ValidationResult = {
         isValid: false,
         errors,
         warnings,
+        totalRows,
+        validRows: 0,
+        invalidRows: totalRows,
+        errorSummary,
       };
       setState(prev => ({
         ...prev,
@@ -147,25 +163,33 @@ export function useMISUpload() {
         .map(m => [m.targetColumn!, m.sourceColumn])
     );
 
-    // Row-level validation: check each mandatory column has a value
-    const rowFailures: Map<number, { column: string; reason: string }[]> = new Map();
+    // Row-level validation: track failures by column for summary
+    const columnFailures: Map<string, { rows: number[]; values: (string | undefined)[]; errorType: 'blank' | 'invalid_format' }> = new Map();
+    const invalidRowSet = new Set<number>();
 
     state.parsedFile.rows.forEach((row, idx) => {
       const rowNum = idx + 2; // Excel row number (1-indexed + header)
-      const failures: { column: string; reason: string }[] = [];
 
       // Check each required column has a non-empty value
       REQUIRED_COLUMNS.forEach(col => {
         const sourceCol = mappingLookup.get(col);
-        if (!sourceCol) return; // Already caught in schema validation
+        if (!sourceCol) return;
 
         const value = row[sourceCol];
         const isEmpty = value === null || value === undefined || String(value).trim() === '';
 
         if (isEmpty) {
-          failures.push({
+          invalidRowSet.add(rowNum);
+          const existing = columnFailures.get(col) || { rows: [], values: [], errorType: 'blank' as const };
+          existing.rows.push(rowNum);
+          existing.values.push(undefined);
+          columnFailures.set(col, existing);
+
+          errors.push({
+            type: 'blank_value',
+            message: `Row ${rowNum}: ${col} is NULL or empty`,
+            row: rowNum,
             column: col,
-            reason: `NULL or empty value`,
           });
         }
       });
@@ -177,44 +201,66 @@ export function useMISUpload() {
         if (dateVal && typeof dateVal !== 'object') { // Not already a Date
           const parsed = new Date(String(dateVal));
           if (isNaN(parsed.getTime())) {
-            failures.push({
+            invalidRowSet.add(rowNum);
+            const existing = columnFailures.get('application_date') || { rows: [], values: [], errorType: 'invalid_format' as const };
+            existing.rows.push(rowNum);
+            existing.values.push(String(dateVal));
+            existing.errorType = 'invalid_format';
+            columnFailures.set('application_date', existing);
+
+            errors.push({
+              type: 'invalid_format',
+              message: `Row ${rowNum}: application_date - Invalid date format`,
+              row: rowNum,
               column: 'application_date',
-              reason: `Invalid date format: "${dateVal}"`,
+              value: String(dateVal),
             });
           }
         }
       }
 
-      if (failures.length > 0) {
-        rowFailures.set(rowNum, failures);
+      // Special validation: bank_event_date should be parseable if present
+      const bankDateSource = mappingLookup.get('bank_event_date');
+      if (bankDateSource) {
+        const dateVal = row[bankDateSource];
+        if (dateVal && typeof dateVal !== 'object') {
+          const parsed = new Date(String(dateVal));
+          if (isNaN(parsed.getTime())) {
+            invalidRowSet.add(rowNum);
+            const existing = columnFailures.get('bank_event_date') || { rows: [], values: [], errorType: 'invalid_format' as const };
+            existing.rows.push(rowNum);
+            existing.values.push(String(dateVal));
+            existing.errorType = 'invalid_format';
+            columnFailures.set('bank_event_date', existing);
+
+            errors.push({
+              type: 'invalid_format',
+              message: `Row ${rowNum}: bank_event_date - Invalid date format`,
+              row: rowNum,
+              column: 'bank_event_date',
+              value: String(dateVal),
+            });
+          }
+        }
       }
     });
 
-    // Convert row failures to errors
-    rowFailures.forEach((failures, rowNum) => {
-      failures.forEach(({ column, reason }) => {
-        errors.push({
-          type: 'invalid_format',
-          message: `Row ${rowNum}: ${column} - ${reason}`,
-          row: rowNum,
-          column,
-        });
+    // Build column error summary for UI display
+    columnFailures.forEach((failures, column) => {
+      errorSummary.push({
+        column,
+        errorCount: failures.rows.length,
+        errorType: failures.errorType === 'blank' ? 'blank' : 'invalid_format',
+        sampleErrors: failures.rows.slice(0, 5).map((row, i) => ({
+          row,
+          value: failures.values[i],
+        })),
+        fixAction: failures.errorType === 'blank' ? 'reupload' : 'reupload',
       });
     });
 
-    // Limit displayed errors but track total
-    const totalRowErrors = errors.filter(e => e.type === 'invalid_format').length;
-    if (totalRowErrors > 50) {
-      // Keep first 50 row errors, add summary
-      const schemaErrors = errors.filter(e => e.type === 'missing_required');
-      const rowErrors = errors.filter(e => e.type === 'invalid_format').slice(0, 50);
-      errors.length = 0;
-      errors.push(...schemaErrors, ...rowErrors);
-      warnings.push({
-        type: 'empty_value',
-        message: `${totalRowErrors - 50} additional row errors not shown. Fix the above issues first.`,
-      });
-    }
+    // Sort summary by error count descending
+    errorSummary.sort((a, b) => b.errorCount - a.errorCount);
 
     // Check for duplicate application_ids within file
     const appIdMapping = state.columnMappings.find(m => m.targetColumn === 'application_id');
@@ -261,10 +307,17 @@ export function useMISUpload() {
       }
     }
 
+    const invalidRows = invalidRowSet.size;
+    const validRows = totalRows - invalidRows;
+
     const validationResult: ValidationResult = {
       isValid: errors.length === 0,
       errors,
       warnings,
+      totalRows,
+      validRows,
+      invalidRows,
+      errorSummary,
     };
 
     setState(prev => ({
@@ -512,6 +565,81 @@ export function useMISUpload() {
     }
   }, [state.parsedFile, state.changePreview]);
 
+  // Drop invalid rows (requires explicit confirmation)
+  const dropInvalidRows = useCallback((rowNumbers: number[]) => {
+    setState(prev => {
+      const newDroppedRows = new Set(prev.droppedRows);
+      rowNumbers.forEach(r => newDroppedRows.add(r));
+      return { ...prev, droppedRows: newDroppedRows };
+    });
+  }, []);
+
+  // Clear dropped rows (undo)
+  const clearDroppedRows = useCallback(() => {
+    setState(prev => ({ ...prev, droppedRows: new Set<number>() }));
+  }, []);
+
+  // Revalidate after dropping rows
+  const revalidateWithDropped = useCallback(() => {
+    if (!state.parsedFile || !state.validationResult) return;
+
+    // Filter out dropped rows from error count
+    const droppedSet = state.droppedRows;
+    const filteredErrors = state.validationResult.errors.filter(
+      e => !e.row || !droppedSet.has(e.row)
+    );
+
+    // Recalculate summary
+    const errorSummary: ColumnErrorSummary[] = [];
+    const columnFailures: Map<string, { rows: number[]; values: (string | undefined)[]; errorType: 'blank' | 'invalid_format' | 'missing' | 'unmapped' }> = new Map();
+
+    filteredErrors.forEach(error => {
+      if (error.column) {
+        const existing = columnFailures.get(error.column) || {
+          rows: [],
+          values: [],
+          errorType: (error.type === 'blank_value' ? 'blank' : error.type === 'missing_required' ? 'unmapped' : 'invalid_format') as any,
+        };
+        if (error.row) existing.rows.push(error.row);
+        if (error.value) existing.values.push(error.value);
+        columnFailures.set(error.column, existing);
+      }
+    });
+
+    columnFailures.forEach((failures, column) => {
+      errorSummary.push({
+        column,
+        errorCount: failures.rows.length,
+        errorType: failures.errorType,
+        sampleErrors: failures.rows.slice(0, 5).map((row, i) => ({
+          row,
+          value: failures.values[i],
+        })),
+        fixAction: 'reupload',
+      });
+    });
+
+    const totalRows = state.parsedFile.rows.length;
+    const droppedCount = droppedSet.size;
+    const invalidRows = new Set(filteredErrors.filter(e => e.row).map(e => e.row!)).size;
+    const validRows = totalRows - invalidRows - droppedCount;
+
+    const updatedResult: ValidationResult = {
+      isValid: filteredErrors.length === 0,
+      errors: filteredErrors,
+      warnings: state.validationResult.warnings,
+      totalRows,
+      validRows,
+      invalidRows,
+      errorSummary,
+    };
+
+    setState(prev => ({
+      ...prev,
+      validationResult: updatedResult,
+    }));
+  }, [state.parsedFile, state.validationResult, state.droppedRows]);
+
   return {
     state,
     reset,
@@ -521,6 +649,9 @@ export function useMISUpload() {
     validateData,
     generatePreview,
     applyChanges,
+    dropInvalidRows,
+    clearDroppedRows,
+    revalidateWithDropped,
   };
 }
 

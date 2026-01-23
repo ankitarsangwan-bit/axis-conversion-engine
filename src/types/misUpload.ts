@@ -61,13 +61,30 @@ export interface ValidationResult {
   isValid: boolean;
   errors: ValidationError[];
   warnings: ValidationWarning[];
+  /** Total rows in file */
+  totalRows: number;
+  /** Rows that passed validation */
+  validRows: number;
+  /** Rows that failed validation */
+  invalidRows: number;
+  /** Summary of errors by column for quick display */
+  errorSummary: ColumnErrorSummary[];
+}
+
+export interface ColumnErrorSummary {
+  column: string;
+  errorCount: number;
+  errorType: 'missing' | 'blank' | 'invalid_format' | 'unmapped';
+  sampleErrors: { row: number; value?: string }[];
+  fixAction: 'remap' | 'reupload' | 'drop';
 }
 
 export interface ValidationError {
   row?: number;
   column?: string;
   message: string;
-  type: 'missing_required' | 'invalid_format' | 'duplicate_id' | 'schema_mismatch';
+  value?: string; // The actual value that failed
+  type: 'missing_required' | 'invalid_format' | 'duplicate_id' | 'schema_mismatch' | 'blank_value';
 }
 
 export interface ValidationWarning {
@@ -75,6 +92,14 @@ export interface ValidationWarning {
   column?: string;
   message: string;
   type: 'unmapped_column' | 'empty_value' | 'date_format';
+}
+
+/** Rows marked for dropping during validation */
+export interface DroppedRow {
+  rowNumber: number;
+  applicationId?: string;
+  reason: string;
+  columns: string[];
 }
 
 // Preview changes after applying overwrite logic
@@ -113,4 +138,6 @@ export interface UploadState {
   changePreview: ChangePreview | null;
   isProcessing: boolean;
   error: string | null;
+  /** Rows explicitly marked for dropping (user confirmed) */
+  droppedRows: Set<number>;
 }

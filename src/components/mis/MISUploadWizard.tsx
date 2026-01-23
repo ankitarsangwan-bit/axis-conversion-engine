@@ -1,6 +1,6 @@
 import { FileUploadZone } from './FileUploadZone';
 import { ColumnMapper } from './ColumnMapper';
-import { ValidationResults } from './ValidationResults';
+import { ValidationResultsEnhanced } from './ValidationResultsEnhanced';
 import { ChangePreview } from './ChangePreview';
 import { UploadComplete } from './UploadComplete';
 import { useMISUpload } from '@/hooks/useMISUpload';
@@ -29,6 +29,9 @@ export function MISUploadWizard({ onViewDashboard }: MISUploadWizardProps) {
     validateData,
     generatePreview,
     applyChanges,
+    dropInvalidRows,
+    clearDroppedRows,
+    revalidateWithDropped,
   } = useMISUpload();
 
   const currentStepIndex = STEPS.findIndex(s => s.key === state.step);
@@ -98,10 +101,22 @@ export function MISUploadWizard({ onViewDashboard }: MISUploadWizardProps) {
         )}
 
         {state.step === 'validation' && state.validationResult && (
-          <ValidationResults
+          <ValidationResultsEnhanced
             validationResult={state.validationResult}
-            onPreview={generatePreview}
+            droppedRowCount={state.droppedRows.size}
+            onPreview={() => {
+              if (state.droppedRows.size > 0) {
+                revalidateWithDropped();
+              }
+              generatePreview();
+            }}
             onBack={() => setStep('mapping')}
+            onReupload={reset}
+            onDropInvalidRows={(rows) => {
+              dropInvalidRows(rows);
+              revalidateWithDropped();
+            }}
+            onClearDropped={clearDroppedRows}
           />
         )}
 
