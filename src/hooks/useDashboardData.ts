@@ -175,11 +175,28 @@ function parseMonthString(monthStr: string): Date | null {
   return new Date(year, monthIndex, 1);
 }
 
+// 🔒 CRITICAL: Derive month from application_date at query time
+// This is the SOURCE OF TRUTH for month aggregation - NOT a frozen 'month' field
+function deriveMonthFromApplicationDate(appDate: string | null): string {
+  if (!appDate) return 'Unknown';
+  
+  try {
+    // application_date is stored as YYYY-MM-DD
+    const date = new Date(appDate);
+    if (isNaN(date.getTime())) return 'Unknown';
+    
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+  } catch {
+    return 'Unknown';
+  }
+}
+
 // Compute dashboard data from database records
 async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardData> {
-  // 🔒 CRITICAL: The 'month' text field in DB is the APPLICATION DATE from MIS
-  // NOT 'created_at' which is the Supabase insert timestamp
-  // Date filtering must be done POST-FETCH by parsing the 'month' field
+  // 🔒 CRITICAL: Month aggregation is DERIVED from application_date column
+  // application_date = DATE column (2nd col) from Axis MIS - the immutable event time
+  // This ensures correct bucketing regardless of which upload added the record
   
   let allRecords: any[] = [];
   let from = 0;
@@ -209,14 +226,24 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
 
   console.log(`Fetched ${allRecords.length} total records from database`);
   
-  // 🔒 FILTER BY DATE RANGE using the 'month' text field (e.g., "Nov 2025")
-  // This is the APPLICATION DATE from MIS, NOT the DB insert timestamp
+  // 🔒 FILTER BY DATE RANGE using application_date (the immutable event time)
+  // If application_date is not yet populated, fall back to parsing 'month' field
   let records = allRecords;
   if (dateRange?.from || dateRange?.to) {
     records = allRecords.filter((r: any) => {
-      const monthStr = r.month || '';
-      // Parse "Mon YYYY" format (e.g., "Nov 2025")
-      const parsedDate = parseMonthString(monthStr);
+      // Prefer application_date, fall back to parsing month field
+      let parsedDate: Date | null = null;
+      
+      if (r.application_date) {
+        parsedDate = new Date(r.application_date);
+        if (isNaN(parsedDate.getTime())) parsedDate = null;
+      }
+      
+      // Fall back to month field if application_date not available
+      if (!parsedDate) {
+        parsedDate = parseMonthString(r.month || '');
+      }
+      
       if (!parsedDate) return false;
       
       if (dateRange.from && parsedDate < dateRange.from) return false;
@@ -299,9 +326,13 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
   const monthTotals = new Map<string, number>();
 
   (records || []).forEach((r: any) => {
-    // 🔒 CRITICAL: Use 'month' text field directly from MIS - this IS the application date
-    // NOT 'created_at' which is the Supabase insert timestamp
-    const month = r.month || 'Unknown';
+    // 🔒 CRITICAL: Derive month from application_date at query time
+    // application_date = DATE column (2nd col) from Axis MIS - the immutable event time
+    // Fall back to legacy 'month' field if application_date not yet populated
+    const month = r.application_date 
+      ? deriveMonthFromApplicationDate(r.application_date)
+      : (r.month || 'Unknown');
+    
     const loginStatus = (r.login_status || '').toUpperCase().trim();
     const vkycStatus = (r.vkyc_status || '').toUpperCase().trim();
     const coreNonCore = (r.core_non_core || '').toUpperCase().trim();

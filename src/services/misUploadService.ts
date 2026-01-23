@@ -109,12 +109,18 @@ export async function saveMISUpload(
             ? normalizeToISODate(String(r.newValues.last_updated_date))
             : new Date().toISOString();
 
-          // 🔒 CRITICAL: Month comes from application_date (MIS business date), NOT last_updated_date
-          // This is the frozen application month that NEVER changes
-          const applicationDate = r.newValues?.application_date 
+          // 🔒 CRITICAL: application_date = DATE column (2nd col in Axis MIS)
+          // This is the SOURCE OF TRUTH for month aggregation
+          // Month is DERIVED at query time from application_date, NOT frozen
+          const applicationDateStr = r.newValues?.application_date 
             ? normalizeToISODate(String(r.newValues.application_date))
             : lastUpdatedDate; // Fallback to last_updated_date if application_date missing
-          const month = getMonthFromDate(applicationDate);
+          
+          // Extract just the date part (YYYY-MM-DD) for the application_date column
+          const applicationDateOnly = applicationDateStr.split('T')[0];
+          
+          // Keep legacy month field for backward compatibility, but aggregation uses application_date
+          const month = getMonthFromDate(applicationDateStr);
 
           // Get decline reason (Reason column)
           const declineReason = r.newValues?.rejection_reason ? String(r.newValues.rejection_reason) : null;
@@ -134,7 +140,8 @@ export async function saveMISUpload(
           return {
             upload_id: upload.id,
             application_id: r.application_id,
-            month: month,
+            application_date: applicationDateOnly, // 🔒 SOURCE OF TRUTH for month aggregation
+            month: month, // Legacy field, kept for backward compatibility
             blaze_output: blazeOutput,
             login_status: loginStatus,
             final_status: finalStatus,
@@ -251,7 +258,12 @@ export async function saveMISUpload(
             }
           }
 
-          // Build upsert record - EXCLUDE month field so it's not overwritten
+          // 🔒 CRITICAL: application_date is the SOURCE OF TRUTH for month aggregation
+          // We preserve existing application_date - it should never change once set
+          // The legacy 'month' field is kept for backward compatibility but aggregation uses application_date
+          const existingAppDate = record.oldValues?.application_date ? String(record.oldValues.application_date) : null;
+          
+          // Build upsert record
           const upsertRecord: Record<string, any> = {
             application_id: record.application_id,
             upload_id: upload.id,
@@ -274,16 +286,18 @@ export async function saveMISUpload(
             applications: 1,
           };
           
-          // Only include month if we have the existing value (to preserve it)
-          // If somehow existingMonth is null, we need to derive it from application_date
-          if (existingMonth) {
-            upsertRecord.month = existingMonth;
+          // 🔒 PRESERVE existing application_date - it's the immutable event time
+          // If application already exists, keep its original application_date
+          if (existingAppDate) {
+            upsertRecord.application_date = existingAppDate.split('T')[0];
+            upsertRecord.month = existingMonth || getMonthFromDate(existingAppDate);
           } else {
-            // Fallback: derive from application_date if available, otherwise last_updated_date
-            const applicationDate = record.newValues?.application_date 
+            // New record being updated - derive from incoming application_date
+            const applicationDateStr = record.newValues?.application_date 
               ? normalizeToISODate(String(record.newValues.application_date))
               : lastUpdatedDate;
-            upsertRecord.month = getMonthFromDate(applicationDate);
+            upsertRecord.application_date = applicationDateStr.split('T')[0];
+            upsertRecord.month = getMonthFromDate(applicationDateStr);
           }
           
           return upsertRecord;

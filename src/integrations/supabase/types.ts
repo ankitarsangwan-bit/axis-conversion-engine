@@ -93,6 +93,7 @@ export type Database = {
       }
       mis_records: {
         Row: {
+          application_date: string | null
           application_id: string
           applications: number | null
           blaze_output: string | null
@@ -118,6 +119,7 @@ export type Database = {
           vkyc_status: string | null
         }
         Insert: {
+          application_date?: string | null
           application_id: string
           applications?: number | null
           blaze_output?: string | null
@@ -143,6 +145,7 @@ export type Database = {
           vkyc_status?: string | null
         }
         Update: {
+          application_date?: string | null
           application_id?: string
           applications?: number | null
           blaze_output?: string | null
