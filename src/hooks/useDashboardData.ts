@@ -390,7 +390,7 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
     const kycDone = group.byLogin + group.byVkyc + group.finalVkycReject;
     
     qualityRows.push({
-      quality: quality as 'Good' | 'Average' | 'Rejected',
+      quality: quality as LeadQuality,
       totalApplications: group.total,
       eligibleForKyc: eligible,
       kycPending: group.kycPending,
@@ -458,13 +458,15 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
   const vkycFunnelMetrics = computeVkycMetrics(vkycData || []);
 
   // Build monthly quality data for Quality Analysis tab
+  // CRITICAL: Include all 4 quality buckets (Good, Average, Rejected, Blank)
   const monthlyQualityData: MonthQualityData[] = [];
   monthQualityCounts.forEach((qualityCounts, month) => {
     // Skip invalid months
     if (month === 'Unknown' || month.includes('1899')) return;
     
     const monthTotal = monthTotals.get(month) || 1;
-    ['Good', 'Average', 'Rejected'].forEach(quality => {
+    // Include ALL 4 quality buckets
+    ['Good', 'Average', 'Rejected', 'Blank'].forEach(quality => {
       const apps = qualityCounts.get(quality) || 0;
       monthlyQualityData.push({
         month,

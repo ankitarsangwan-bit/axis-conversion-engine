@@ -238,7 +238,8 @@ export function getAxisTotals(): AxisSummaryRow {
 
 // Quality-Level View - Breakdown by Lead Quality
 export function getQualitySummary(): QualitySummaryRow[] {
-  const qualities: LeadQuality[] = ['Good', 'Average', 'Rejected'];
+  // 🔒 LOCKED: 4 quality buckets derived ONLY from blaze_output
+  const qualities: LeadQuality[] = ['Good', 'Average', 'Rejected', 'Blank'];
   
   return qualities.map(quality => {
     const qualityApps = sampleAxisApplications.filter(a => a.lead_quality === quality);
