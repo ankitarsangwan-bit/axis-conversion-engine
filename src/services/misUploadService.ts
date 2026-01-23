@@ -135,6 +135,21 @@ export async function saveMISUpload(
             application_id: r.application_id,
             application_date: applicationDateOnly, // 🔒 SOURCE OF TRUTH for month aggregation
             month: month, // Legacy field, kept for backward compatibility
+            // 🔒 MANDATORY COLUMNS - persisted from MIS
+            name: r.newValues?.name ? String(r.newValues.name) : null,
+            card_type: r.newValues?.card_type ? String(r.newValues.card_type) : null,
+            ipa_status: r.newValues?.ipa_status ? String(r.newValues.ipa_status) : null,
+            dip_ok_status: r.newValues?.dip_ok_status ? String(r.newValues.dip_ok_status) : null,
+            ad_status: r.newValues?.ad_status ? String(r.newValues.ad_status) : null,
+            bank_event_date: r.newValues?.bank_event_date 
+              ? normalizeToISODate(String(r.newValues.bank_event_date)).split('T')[0] 
+              : null,
+            etcc: r.newValues?.etcc ? String(r.newValues.etcc) : null,
+            existing_c: r.newValues?.existing_c ? String(r.newValues.existing_c) : null,
+            mis_month: r.newValues?.mis_month ? String(r.newValues.mis_month) : null,
+            vkyc_description: r.newValues?.vkyc_description ? String(r.newValues.vkyc_description) : null,
+            pincode: r.newValues?.pincode ? String(r.newValues.pincode) : null,
+            // Existing columns
             blaze_output: blazeOutput,
             login_status: loginStatus,
             final_status: finalStatus,
@@ -261,6 +276,24 @@ export async function saveMISUpload(
             application_id: record.application_id,
             upload_id: upload.id,
             last_updated_date: lastUpdatedDate,
+            // 🔒 MANDATORY COLUMNS - persisted from MIS
+            name: record.newValues?.name ? String(record.newValues.name) : null,
+            card_type: record.newValues?.card_type ? String(record.newValues.card_type) : null,
+            ipa_status: record.newValues?.ipa_status ? String(record.newValues.ipa_status) : null,
+            dip_ok_status: record.newValues?.dip_ok_status ? String(record.newValues.dip_ok_status) : null,
+            ad_status: record.newValues?.ad_status ? String(record.newValues.ad_status) : null,
+            bank_event_date: record.newValues?.bank_event_date 
+              ? normalizeToISODate(String(record.newValues.bank_event_date)).split('T')[0] 
+              : null,
+            etcc: record.newValues?.etcc ? String(record.newValues.etcc) : null,
+            existing_c: record.newValues?.existing_c ? String(record.newValues.existing_c) : null,
+            // 🔒 PRESERVE existing mis_month - it's frozen at first insert
+            mis_month: record.oldValues?.mis_month 
+              ? String(record.oldValues.mis_month) 
+              : (record.newValues?.mis_month ? String(record.newValues.mis_month) : null),
+            vkyc_description: record.newValues?.vkyc_description ? String(record.newValues.vkyc_description) : null,
+            pincode: record.newValues?.pincode ? String(record.newValues.pincode) : null,
+            // Existing columns
             blaze_output: blazeOutput,
             login_status: loginStatus,
             final_status: finalStatus,

@@ -93,79 +93,112 @@ export type Database = {
       }
       mis_records: {
         Row: {
+          ad_status: string | null
           application_date: string | null
           application_id: string
           applications: number | null
+          bank_event_date: string | null
           blaze_output: string | null
           bureau_pass: number | null
+          card_type: string | null
           core_non_core: string | null
           created_at: string
           dedupe_pass: number | null
+          dip_ok_status: string | null
           disbursed: number | null
           disbursement_amount: number | null
+          etcc: string | null
+          existing_c: string | null
           final_status: string | null
           id: string
+          ipa_status: string | null
           kyc_completed: boolean | null
           last_updated_date: string | null
           lead_quality: string | null
           login_status: string | null
+          mis_month: string | null
           month: string
+          name: string | null
+          pincode: string | null
           product: string | null
           rejection_reason: string | null
           state: string | null
           upload_id: string | null
+          vkyc_description: string | null
           vkyc_eligible: string | null
           vkyc_pass: number | null
           vkyc_status: string | null
         }
         Insert: {
+          ad_status?: string | null
           application_date?: string | null
           application_id: string
           applications?: number | null
+          bank_event_date?: string | null
           blaze_output?: string | null
           bureau_pass?: number | null
+          card_type?: string | null
           core_non_core?: string | null
           created_at?: string
           dedupe_pass?: number | null
+          dip_ok_status?: string | null
           disbursed?: number | null
           disbursement_amount?: number | null
+          etcc?: string | null
+          existing_c?: string | null
           final_status?: string | null
           id?: string
+          ipa_status?: string | null
           kyc_completed?: boolean | null
           last_updated_date?: string | null
           lead_quality?: string | null
           login_status?: string | null
+          mis_month?: string | null
           month: string
+          name?: string | null
+          pincode?: string | null
           product?: string | null
           rejection_reason?: string | null
           state?: string | null
           upload_id?: string | null
+          vkyc_description?: string | null
           vkyc_eligible?: string | null
           vkyc_pass?: number | null
           vkyc_status?: string | null
         }
         Update: {
+          ad_status?: string | null
           application_date?: string | null
           application_id?: string
           applications?: number | null
+          bank_event_date?: string | null
           blaze_output?: string | null
           bureau_pass?: number | null
+          card_type?: string | null
           core_non_core?: string | null
           created_at?: string
           dedupe_pass?: number | null
+          dip_ok_status?: string | null
           disbursed?: number | null
           disbursement_amount?: number | null
+          etcc?: string | null
+          existing_c?: string | null
           final_status?: string | null
           id?: string
+          ipa_status?: string | null
           kyc_completed?: boolean | null
           last_updated_date?: string | null
           lead_quality?: string | null
           login_status?: string | null
+          mis_month?: string | null
           month?: string
+          name?: string | null
+          pincode?: string | null
           product?: string | null
           rejection_reason?: string | null
           state?: string | null
           upload_id?: string | null
+          vkyc_description?: string | null
           vkyc_eligible?: string | null
           vkyc_pass?: number | null
           vkyc_status?: string | null
