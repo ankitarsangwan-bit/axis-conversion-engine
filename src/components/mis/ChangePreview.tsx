@@ -38,41 +38,70 @@ export function ChangePreview({ changePreview, onApply, onBack, isProcessing }: 
               Skipped Records ({skippedRecords.length})
             </CardTitle>
             <CardDescription className="text-xs mt-0.5">
-              Updates rejected by state machine guards (terminal state, backward transition, or stale date)
+              Updates rejected by state machine guards - these records will NOT be modified
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="overflow-x-auto max-h-48">
+            <div className="overflow-x-auto max-h-64">
               <table className="professional-table">
                 <thead>
                   <tr>
                     <th>Application ID</th>
-                    <th>Guard</th>
-                    <th>Details</th>
+                    <th>Guard Type</th>
+                    <th>Reason</th>
+                    <th>Fixable?</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {skippedRecords.slice(0, 10).map((record) => (
-                    <tr key={record.application_id}>
-                      <td className="font-mono text-xs">{record.application_id}</td>
-                      <td>
-                        <Badge className="text-[9px] bg-warning/20 text-warning border-0">
-                          {record.reason.includes('terminal') ? 'Terminal State' :
-                           record.reason.includes('Backward') ? 'Backward Transition' :
-                           record.reason.includes('older') || record.reason.includes('Stale') ? 'Stale Date' :
-                           'State Guard'}
-                        </Badge>
-                      </td>
-                      <td className="text-xs text-muted-foreground max-w-xs truncate" title={record.details}>
-                        {record.details || record.reason}
-                      </td>
-                    </tr>
-                  ))}
+                  {skippedRecords.slice(0, 15).map((record) => {
+                    const guardType = record.reason.includes('terminal') ? 'Terminal State' :
+                                     record.reason.includes('Backward') ? 'Backward Transition' :
+                                     record.reason.includes('older') || record.reason.includes('Stale') ? 'Stale Date' :
+                                     'State Guard';
+                    
+                    // Determine fixability and suggested action
+                    const isTerminal = guardType === 'Terminal State';
+                    const isStale = guardType === 'Stale Date';
+                    const suggestedAction = isTerminal 
+                      ? 'Record is final - no action possible'
+                      : isStale 
+                        ? 'Upload newer MIS with later date'
+                        : 'Review state progression in source';
+                    
+                    return (
+                      <tr key={record.application_id}>
+                        <td className="font-mono text-xs">{record.application_id}</td>
+                        <td>
+                          <Badge className={`text-[9px] border-0 ${
+                            isTerminal ? 'bg-destructive/20 text-destructive' :
+                            isStale ? 'bg-warning/20 text-warning' :
+                            'bg-info/20 text-info'
+                          }`}>
+                            {guardType}
+                          </Badge>
+                        </td>
+                        <td className="text-xs text-muted-foreground max-w-xs truncate" title={record.details}>
+                          {record.details || record.reason}
+                        </td>
+                        <td>
+                          <Badge className={`text-[9px] border-0 ${
+                            isTerminal ? 'bg-muted text-muted-foreground' : 'bg-success/20 text-success'
+                          }`}>
+                            {isTerminal ? 'No' : 'Yes'}
+                          </Badge>
+                        </td>
+                        <td className="text-xs text-muted-foreground max-w-[150px] truncate" title={suggestedAction}>
+                          {suggestedAction}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
-              {skippedRecords.length > 10 && (
+              {skippedRecords.length > 15 && (
                 <div className="p-2 text-center text-xs text-muted-foreground border-t">
-                  +{skippedRecords.length - 10} more skipped records
+                  +{skippedRecords.length - 15} more skipped records
                 </div>
               )}
             </div>

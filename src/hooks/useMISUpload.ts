@@ -107,13 +107,15 @@ export function useMISUpload() {
     const errors: ValidationError[] = [];
     const warnings: ValidationWarning[] = [];
 
-    // Check required columns are mapped
+    // Check required columns are mapped (schema-level validation)
     const mappedTargets = state.columnMappings
       .filter(m => m.isMapped)
       .map(m => m.targetColumn);
 
+    const unmappedRequired: string[] = [];
     REQUIRED_COLUMNS.forEach(col => {
       if (!mappedTargets.includes(col)) {
+        unmappedRequired.push(col);
         errors.push({
           type: 'missing_required',
           message: `Required column "${col}" is not mapped`,
@@ -122,11 +124,100 @@ export function useMISUpload() {
       }
     });
 
-    // Unmapped columns are silently ignored - no warnings needed
+    // If schema-level validation fails, stop here (no row-level checks)
+    if (unmappedRequired.length > 0) {
+      const validationResult: ValidationResult = {
+        isValid: false,
+        errors,
+        warnings,
+      };
+      setState(prev => ({
+        ...prev,
+        validationResult,
+        step: 'validation',
+        isProcessing: false,
+      }));
+      return;
+    }
 
-    // Get the mapping for application_id
+    // Build mapping lookup for row-level validation
+    const mappingLookup = new Map(
+      state.columnMappings
+        .filter(m => m.isMapped && m.targetColumn)
+        .map(m => [m.targetColumn!, m.sourceColumn])
+    );
+
+    // Row-level validation: check each mandatory column has a value
+    const rowFailures: Map<number, { column: string; reason: string }[]> = new Map();
+
+    state.parsedFile.rows.forEach((row, idx) => {
+      const rowNum = idx + 2; // Excel row number (1-indexed + header)
+      const failures: { column: string; reason: string }[] = [];
+
+      // Check each required column has a non-empty value
+      REQUIRED_COLUMNS.forEach(col => {
+        const sourceCol = mappingLookup.get(col);
+        if (!sourceCol) return; // Already caught in schema validation
+
+        const value = row[sourceCol];
+        const isEmpty = value === null || value === undefined || String(value).trim() === '';
+
+        if (isEmpty) {
+          failures.push({
+            column: col,
+            reason: `NULL or empty value`,
+          });
+        }
+      });
+
+      // Special validation: application_date must be parseable as a date
+      const appDateSource = mappingLookup.get('application_date');
+      if (appDateSource) {
+        const dateVal = row[appDateSource];
+        if (dateVal && typeof dateVal !== 'object') { // Not already a Date
+          const parsed = new Date(String(dateVal));
+          if (isNaN(parsed.getTime())) {
+            failures.push({
+              column: 'application_date',
+              reason: `Invalid date format: "${dateVal}"`,
+            });
+          }
+        }
+      }
+
+      if (failures.length > 0) {
+        rowFailures.set(rowNum, failures);
+      }
+    });
+
+    // Convert row failures to errors
+    rowFailures.forEach((failures, rowNum) => {
+      failures.forEach(({ column, reason }) => {
+        errors.push({
+          type: 'invalid_format',
+          message: `Row ${rowNum}: ${column} - ${reason}`,
+          row: rowNum,
+          column,
+        });
+      });
+    });
+
+    // Limit displayed errors but track total
+    const totalRowErrors = errors.filter(e => e.type === 'invalid_format').length;
+    if (totalRowErrors > 50) {
+      // Keep first 50 row errors, add summary
+      const schemaErrors = errors.filter(e => e.type === 'missing_required');
+      const rowErrors = errors.filter(e => e.type === 'invalid_format').slice(0, 50);
+      errors.length = 0;
+      errors.push(...schemaErrors, ...rowErrors);
+      warnings.push({
+        type: 'empty_value',
+        message: `${totalRowErrors - 50} additional row errors not shown. Fix the above issues first.`,
+      });
+    }
+
+    // Check for duplicate application_ids within file
     const appIdMapping = state.columnMappings.find(m => m.targetColumn === 'application_id');
-
     if (appIdMapping) {
       const seenIds = new Set<string>();
       const duplicateIds = new Set<string>();
@@ -134,16 +225,9 @@ export function useMISUpload() {
       state.parsedFile.rows.forEach((row, idx) => {
         const appId = String(row[appIdMapping.sourceColumn] || '').trim();
         
-        if (!appId) {
-          errors.push({
-            type: 'invalid_format',
-            message: `Empty application_id at row ${idx + 2}`,
-            row: idx + 2,
-            column: 'application_id',
-          });
-        } else if (seenIds.has(appId)) {
+        if (appId && seenIds.has(appId)) {
           duplicateIds.add(appId);
-        } else {
+        } else if (appId) {
           seenIds.add(appId);
         }
       });
@@ -156,23 +240,25 @@ export function useMISUpload() {
       }
     }
 
-    // Check date format
+    // Check date format for last_updated_date (optional but should warn if malformed)
     const dateMapping = state.columnMappings.find(m => m.targetColumn === 'last_updated_date');
     if (dateMapping) {
+      let invalidDateCount = 0;
       state.parsedFile.rows.forEach((row, idx) => {
         const dateVal = row[dateMapping.sourceColumn];
         if (dateVal && typeof dateVal === 'string') {
           const parsed = new Date(dateVal);
           if (isNaN(parsed.getTime())) {
-            warnings.push({
-              type: 'date_format',
-              message: `Invalid date format at row ${idx + 2}`,
-              row: idx + 2,
-              column: 'last_updated_date',
-            });
+            invalidDateCount++;
           }
         }
       });
+      if (invalidDateCount > 0) {
+        warnings.push({
+          type: 'date_format',
+          message: `${invalidDateCount} row(s) have invalid last_updated_date format`,
+        });
+      }
     }
 
     const validationResult: ValidationResult = {
@@ -443,19 +529,32 @@ export function useMISUpload() {
 // This is the MIS business date, frozen at entry. Month derivation uses ONLY this.
 // DO NOT MODIFY without explicit approval.
 const COLUMN_ALIASES: Record<string, string[]> = {
-  'application_id': ['application_id', 'app_id', 'applicationid', 'appid', 'application id', 'app id', 'id'],
-  // 🔒 LOCKED: "date" is first priority - this is the DATE column (2nd col) in Axis MIS
+  // MANDATORY COLUMNS (all must be present)
+  'application_id': ['application_id', 'app_id', 'applicationid', 'appid', 'application id', 'app id', 'id', 'Application no', 'application no', 'applicationno'],
   'application_date': ['date', 'DATE', 'Date', 'application_date', 'applicationdate', 'application date'],
   'blaze_output': ['blaze_output', 'blazeoutput', 'blaze output', 'blaze', 'blaze_op', 'blazeop', 'BLAZE_OUTPUT'],
+  'name': ['name', 'Name', 'NAME', 'applicant_name', 'applicantname', 'applicant name'],
+  'card_type': ['card_type', 'cardtype', 'card type', 'CARD TYPE', 'Card Type'],
+  'ipa_status': ['ipa_status', 'ipastatus', 'ipa status', 'IPA Status', 'IPA STATUS'],
   'login_status': ['login_status', 'loginstatus', 'login status', 'login_st', 'login', 'loginstages', 'LOGIN STATUS'],
+  'dip_ok_status': ['dip_ok_status', 'dipokstatus', 'dip ok status', 'DIP OK STATUS', 'DIP_OK_STATUS'],
+  'ad_status': ['ad_status', 'adstatus', 'a/d status', 'A/D STATUS', 'A/D_STATUS', 'a_d_status'],
+  'bank_event_date': ['bank_event_date', 'bankeventdate', 'date 2', 'Date 2', 'DATE 2', 'date2'],
+  'rejection_reason': ['rejection_reason', 'rejectionreason', 'rejection reason', 'reject_reason', 'rejectreason', 'decline_reason', 'declinereason', 'decline reason', 'Reason', 'reason', 'REASON'],
   'final_status': ['final_status', 'finalstatus', 'final status', 'final_st', 'finalst', 'status', 'final', 'FINAL STATUS'],
-  'last_updated_date': ['last_updated_date', 'lastupdateddate', 'last updated date', 'update_date', 'updatedate', 'updated_date', 'updateddate', 'lastupdate', 'last_update'],
+  'etcc': ['etcc', 'ETCC', 'Etcc'],
+  'existing_c': ['existing_c', 'existingc', 'existing c', 'EXISTING_C', 'Existing_C'],
+  'mis_month': ['mis_month', 'month', 'Month', 'MONTH'],
   'vkyc_status': ['vkyc_status', 'vkycstatus', 'vkyc status', 'vkyc_st', 'vkycst', 'vkyc', 'v_kyc_status', 'vkyc Status'],
+  'vkyc_description': ['vkyc_description', 'vkycdescription', 'vkyc description', 'vkyc descr', 'VKYC DESCR', 'vkyc_descr'],
   'core_non_core': ['core_non_core', 'corenoncore', 'core non core', 'core_noncore', 'core/non-core', 'core / non-core', 'core', 'noncore', 'Core/Noncore', 'corenoncore'],
+  
+  // OPTIONAL COLUMNS
+  'pincode': ['pincode', 'pin_code', 'pin code', 'PINCODE', 'Pincode'],
   'vkyc_eligible': ['vkyc_eligible', 'vkyceligible', 'vkyc eligible', 'vkyc_elig', 'vkycelig', 'eligibility'],
-  'rejection_reason': ['rejection_reason', 'rejectionreason', 'rejection reason', 'reject_reason', 'rejectreason', 'decline_reason', 'declinereason', 'decline reason', 'Reason'],
   'state': ['state', 'st', 'location_state'],
   'product': ['product', 'prod', 'product_name', 'productname'],
+  'last_updated_date': ['last_updated_date', 'lastupdateddate', 'last updated date', 'update_date', 'updatedate', 'updated_date', 'updateddate', 'lastupdate', 'last_update'],
 };
 
 function generateColumnMappings(sourceColumns: string[]): ColumnMapping[] {
