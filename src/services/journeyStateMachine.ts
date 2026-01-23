@@ -261,15 +261,10 @@ export function shouldUpdateRecord(
     existing.blazeOutput
   );
   
-  // 🔒 PRIMARY GUARD 1: Terminal stages are FROZEN (Approved/Final Reject)
-  if (isTerminalStage(existingStage)) {
-    return {
-      shouldUpdate: false,
-      reason: `Application in terminal state (${JourneyStage[existingStage]}). No updates allowed.`,
-      incomingStage,
-      existingStage,
-    };
-  }
+  // ✅ RELAXED: Terminal stages are NO LONGER frozen
+  // Previously blocked updates to Approved/Final Reject records
+  // Now allows MIS snapshots to update all fields on terminal records
+  // Journey stage progression is still tracked but not enforced as a blocker
   
   // 🔒 PRIMARY GUARD 2: Stage guard - can only move forward
   // This is checked BEFORE temporal guard because journey progression is authoritative
