@@ -153,29 +153,43 @@ function formatMonthYear(date: Date): string {
   return `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
 }
 
+// 🔒 CRITICAL: Parse "Mon YYYY" string back to Date (1st of that month)
+// This is used for date range filtering based on the MIS 'month' field
+function parseMonthString(monthStr: string): Date | null {
+  if (!monthStr) return null;
+  
+  const monthMap: Record<string, number> = {
+    'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+    'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11
+  };
+  
+  // Handle "Mon YYYY" format (e.g., "Nov 2025")
+  const parts = monthStr.trim().split(/\s+/);
+  if (parts.length !== 2) return null;
+  
+  const monthIndex = monthMap[parts[0]];
+  const year = parseInt(parts[1], 10);
+  
+  if (monthIndex === undefined || isNaN(year) || year < 1900 || year > 2100) return null;
+  
+  return new Date(year, monthIndex, 1);
+}
+
 // Compute dashboard data from database records
 async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardData> {
-  // Fetch records with date filtering on created_at (application date)
+  // 🔒 CRITICAL: The 'month' text field in DB is the APPLICATION DATE from MIS
+  // NOT 'created_at' which is the Supabase insert timestamp
+  // Date filtering must be done POST-FETCH by parsing the 'month' field
+  
   let allRecords: any[] = [];
   let from = 0;
   const batchSize = 1000;
   let hasMore = true;
 
   while (hasMore) {
-    let query = supabase
+    const query = supabase
       .from('mis_records')
       .select('*');
-    
-    // Filter by created_at (application date) - this is the fixed rule for all banks
-    if (dateRange?.from) {
-      query = query.gte('created_at', dateRange.from.toISOString());
-    }
-    if (dateRange?.to) {
-      // Add 1 day to include the end date
-      const endDate = new Date(dateRange.to);
-      endDate.setDate(endDate.getDate() + 1);
-      query = query.lt('created_at', endDate.toISOString());
-    }
     
     const { data: batch, error } = await query.range(from, from + batchSize - 1);
 
@@ -193,8 +207,28 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
     }
   }
 
-  console.log(`Fetched ${allRecords.length} records from database${dateRange ? ' (filtered by created_at)' : ''}`);
-  const records = allRecords;
+  console.log(`Fetched ${allRecords.length} total records from database`);
+  
+  // 🔒 FILTER BY DATE RANGE using the 'month' text field (e.g., "Nov 2025")
+  // This is the APPLICATION DATE from MIS, NOT the DB insert timestamp
+  let records = allRecords;
+  if (dateRange?.from || dateRange?.to) {
+    records = allRecords.filter((r: any) => {
+      const monthStr = r.month || '';
+      // Parse "Mon YYYY" format (e.g., "Nov 2025")
+      const parsedDate = parseMonthString(monthStr);
+      if (!parsedDate) return false;
+      
+      if (dateRange.from && parsedDate < dateRange.from) return false;
+      if (dateRange.to) {
+        // Add 1 month to include the end month
+        const endOfMonth = new Date(dateRange.to.getFullYear(), dateRange.to.getMonth() + 1, 0);
+        if (parsedDate > endOfMonth) return false;
+      }
+      return true;
+    });
+    console.log(`After date filter (${dateRange.from?.toLocaleDateString()} - ${dateRange.to?.toLocaleDateString()}): ${records.length} records`);
+  }
 
   const { data: uploads } = await supabase
     .from('mis_uploads')
@@ -265,9 +299,9 @@ async function computeDashboardFromDB(dateRange?: DateRange): Promise<DashboardD
   const monthTotals = new Map<string, number>();
 
   (records || []).forEach((r: any) => {
-    // Derive month from created_at (application date) - fixed rule for all banks
-    const appDate = r.created_at ? new Date(r.created_at) : null;
-    const month = appDate && !isNaN(appDate.getTime()) ? formatMonthYear(appDate) : 'Unknown';
+    // 🔒 CRITICAL: Use 'month' text field directly from MIS - this IS the application date
+    // NOT 'created_at' which is the Supabase insert timestamp
+    const month = r.month || 'Unknown';
     const loginStatus = (r.login_status || '').toUpperCase().trim();
     const vkycStatus = (r.vkyc_status || '').toUpperCase().trim();
     const coreNonCore = (r.core_non_core || '').toUpperCase().trim();
