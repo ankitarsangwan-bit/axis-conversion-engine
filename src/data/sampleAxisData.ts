@@ -169,7 +169,7 @@ export const sampleStpkApplications: StpkApplication[] = rawStpkData.map((raw) =
 });
 
 // Helper to calculate summary metrics
-function calculateMetrics(apps: AxisApplication[]) {
+function calculateMetrics(apps: AxisApplication[]): Omit<AxisSummaryRow, 'bank' | 'month' | 'quality'> {
   const total = apps.length;
   const eligible = apps.filter(a => a.lead_quality !== 'Rejected');
   const eligibleCount = eligible.length;
@@ -182,6 +182,11 @@ function calculateMetrics(apps: AxisApplication[]) {
   
   const rejectedPostKyc = apps.filter(a => isRejectedPostKyc(a.final_status, a.kyc_completed)).length;
   const rejectionPercent = kycDone > 0 ? (rejectedPostKyc / kycDone) * 100 : 0;
+  
+  // Underwriting = KYC Done but not yet Approved or Declined
+  const underwriting = Math.max(0, kycDone - cardsApproved - rejectedPostKyc);
+  // Declined = rejectedPostKyc (same metric, just renamed for clarity)
+  const declined = rejectedPostKyc;
 
   return {
     totalApplications: total,
@@ -189,6 +194,8 @@ function calculateMetrics(apps: AxisApplication[]) {
     kycPending,
     kycDone,
     kycConversionPercent: Math.round(kycConversion * 10) / 10,
+    underwriting,
+    declined,
     cardsApproved,
     approvalPercent: Math.round(approvalPercent * 10) / 10,
     rejectedPostKyc,

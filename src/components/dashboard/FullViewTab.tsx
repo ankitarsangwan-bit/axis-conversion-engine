@@ -47,30 +47,45 @@ export function FullViewTab({ summaryRows, totals }: FullViewTabProps) {
 
   return (
     <div className="space-y-4">
-      {/* KPI Cards with Sparklines */}
-      <div className="data-grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6">
+      {/* Row 1: Count KPIs */}
+      <div className="data-grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7">
         <KpiCard 
           label="Total Applications" 
-          value={totals.totalApplications}
-          sparklineData={sortedRows.map(r => ({ value: r.totalApplications }))}
+          value={totals.totalApplications.toLocaleString()}
         />
         <KpiCard 
           label="Eligible for KYC" 
-          value={totals.eligibleForKyc}
-          sparklineData={sortedRows.map(r => ({ value: r.eligibleForKyc }))}
+          value={totals.eligibleForKyc.toLocaleString()}
         />
         <KpiCard 
           label="KYC Pending" 
-          value={totals.kycPending}
+          value={totals.kycPending.toLocaleString()}
           valueColor="warning"
-          sparklineData={pendingSparkline}
         />
         <KpiCard 
           label="KYC Done" 
-          value={totals.kycDone}
+          value={totals.kycDone.toLocaleString()}
           valueColor="success"
-          sparklineData={sortedRows.map(r => ({ value: r.kycDone }))}
         />
+        <KpiCard 
+          label="Underwriting" 
+          value={totals.underwriting.toLocaleString()}
+          valueColor="info"
+        />
+        <KpiCard 
+          label="Decline" 
+          value={totals.declined.toLocaleString()}
+          valueColor="destructive"
+        />
+        <KpiCard 
+          label="Approved" 
+          value={totals.cardsApproved.toLocaleString()}
+          valueColor="success"
+        />
+      </div>
+
+      {/* Row 2: Rate KPIs */}
+      <div className="data-grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 max-w-2xl">
         <KpiCard 
           label="KYC Conversion" 
           value={formatPercent(totals.kycConversionPercent)}
@@ -78,6 +93,12 @@ export function FullViewTab({ summaryRows, totals }: FullViewTabProps) {
           delta={kycDelta}
           deltaLabel="vs prev"
           sparklineData={kycSparkline}
+        />
+        <KpiCard 
+          label="Rejection Rate" 
+          value={formatPercent(totals.rejectionPercent)}
+          valueColor="destructive"
+          sparklineData={sortedRows.map(r => ({ value: r.rejectionPercent }))}
         />
         <KpiCard 
           label="Approval Rate" 
